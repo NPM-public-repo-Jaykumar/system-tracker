@@ -244,21 +244,21 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - In every case: `system-tracker` is installed with the project's package manager, and it brings its own Redis client.
 - `Step-2` Redis mode (only for a new connection, or when the existing mode is unclear): `Standalone` / `Cluster`. Recommend the one the project's hosting or config points to; if nothing does, recommend `Standalone` and say why.
 - `Step-3` How to set up the rest. This keeps the setup fast.
-  - First show the recommended settings in a short list, one line each, based on what you found: prefix, what to track, page-view script, skipped paths and crawlers, failures, groups, time periods, dashboard. For example:
+  - First show the recommended settings in a short list, one line each, based on what you found: prefix, what to track, page-view script, skipped paths and crawlers, failures (always on), groups, time periods, dashboard. For example:
 
     ```text
     Prefix:        ${APP_ENV}                 (production, staging, development)
     Track:         defaults + calls to outside services (OUT: rpc.example.com, api.stripe.com)
     Page changes:  script in app/layout.tsx (with your CSP nonce)
     Skip:          /health, /metrics · crawlers skipped
-    Failures:      counted (5xx)
+    Failures:      counted (5xx), always on
     Time periods:  standard (sec 1h · min/hour 1d · day 30d · month 180d · year 10y)
     Dashboard:     on at /system-tracker, login from SYSTEM_TRACKER_DASHBOARD_USERNAME / _PASSWORD
     ```
 
   - Then ask: `How do you want to set up the rest?`
     - `Use the recommended settings (Recommended)`: skip Steps 4 to 11 and go straight to Step-12, with the list above.
-    - `Recommended, but let me change some`: multi-select of the settings above; ask only the steps for the ones picked, and use the recommended answer for the rest.
+    - `Recommended, but let me change some`: multi-select of the settings above, except failures, which is always on; ask only the steps for the ones picked, and use the recommended answer for the rest.
     - `Go through each setting`: ask Steps 4 to 11 one by one.
   - With several projects, show one list per project and ask once for all of them.
 - `Step-4` Prefix (the first part of every key)
@@ -289,7 +289,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
 - `Step-7` Skip noise
   - Multi-select of the noisy paths found for `ignore.paths` (health, metrics, readiness probes), each `(Recommended)`.
   - Then: `Skip search engines and crawlers?` `Yes (Recommended)` for public websites, `No (Recommended)` for internal APIs.
-- `Step-8` Failures: `Also count failed requests (status 500 and above) (Recommended)` / `No`. It adds one `:5xx` key per failed request and powers the failure charts and alerts in the dashboard.
+- `Step-8` Failures: always on, don't ask. Add `failures: true` to every `init`. It counts failed requests (status 500 and above) in one extra `:5xx` key each, and powers the failure charts, failure rate and alerts in the dashboard. Tell the user it's on.
 - `Step-9` Groups (only when found): offer the route groups as custom `types` (for example `/webhooks/*` as `HOOK`) and single-URL endpoints as `operations`. Recommend each one that's found; `Keep the defaults` is the other option.
 - `Step-10` How long to keep counts:
   - `Standard (Recommended)`: every bucket, kept 1 hour (sec), 1 day (min, hour), 30 days (day), 180 days (month), 10 years (year). Nothing to add to `init`.
@@ -318,6 +318,7 @@ const env = process.env;
 statis.init({
   redis: env.REDIS_URL!, // or the project's existing variable, or { client: existingRedis, type: "standalone" }
   prefix: env.APP_ENV ?? "development", // the project's environment variable
+  failures: true, // always: counts 5xx responses for the failure charts and alerts
   dashboard: {
     enable: Boolean(env.SYSTEM_TRACKER_DASHBOARD_USERNAME && env.SYSTEM_TRACKER_DASHBOARD_PASSWORD),
     url: "/system-tracker", // the default; the app's log prints the full URL at startup
@@ -344,7 +345,7 @@ statis.init({
 - Keep it simple. Change as few files as possible: usually the entry file (`statis.init`), the shared layout (the page-view script) and the env files. Don't create helper files, wrapper modules, config classes or abstractions for system-tracker; put the `init` call inline where it belongs, and match the surrounding code's style.
 - Don't add packages besides `system-tracker`, and don't touch routes, controllers or business code.
 - Call `statis.init(...)` once per server process, at the place listed in "Where to call `statis.init(...)`", before the server listens.
-- Write only options that differ from the defaults, so `init` stays short and readable.
+- Write only options that differ from the defaults, so `init` stays short and readable. `failures: true` is always one of them.
 - If the project already has an `ioredis` client, prefer `statis.init({ redis: { client, type }, prefix })`.
 - If Redis is set up fresh, pass its URL from an env variable (see [Config values](#config-values)). Never hardcode a Redis password or a dashboard password in source.
 - Install `system-tracker` with the project's package manager.
@@ -369,7 +370,7 @@ Project: <name> (<path>)
 - page-view script: <file, or not needed>
 - custom types / operations: <list or none>
 - ignored paths: <list or none>, bots: <skipped / counted>
-- failures key: <on/off>
+- failures key: on (`failures: true`)
 - time periods: sec <on/off, expiry> · min <…> · hour <…> · day <…> · month <…> · year <…>
 - dashboard: <URL, with/without login, or off>
 - Redis connection: <reused client / URL from <variable>>
