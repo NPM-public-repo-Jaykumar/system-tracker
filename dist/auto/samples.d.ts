@@ -18,6 +18,7 @@ export type Sample = {
     response?: string;
     stack?: string;
 };
+export declare const keepsSamples: () => boolean;
 export declare const samplesKey: (prefix: string, id: string) => string;
 export declare const failuresKey: (prefix: string, id: string) => string;
 export declare function keepSamples(prefix: string, hits: Hit[], req: IncomingMessage, res: ServerResponse, url: string, cap: Capture, startedAt: number): void;

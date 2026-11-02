@@ -114,8 +114,29 @@ export declare function typeView(typeParam: string | null, range: string | null,
     })[];
 }>;
 export declare function routeView(q: URLSearchParams, now?: number): Promise<{
+    samples: never[];
+    failed: never[];
+    samplesOff: boolean;
+    key: string;
+    buckets: TimeBucket[];
+    failures: boolean;
+    tiles: {
+        bucket: TimeBucket;
+        current: number;
+        spark: number[];
+        ids: string[];
+        expiry: number;
+    }[];
+    chart: {
+        errors: number[] | null;
+        bucket: TimeBucket;
+        ids: string[];
+        counts: number[];
+    };
+} | {
     samples: Sample[];
     failed: Sample[];
+    samplesOff?: undefined;
     key: string;
     buckets: TimeBucket[];
     failures: boolean;

@@ -64,16 +64,22 @@ export type InitOptions = {
     enabled?: boolean;
     dashboard?: DashboardOptions;
 };
+export type DashboardLogin = {
+    username: string;
+    password: string;
+};
 export type DashboardOptions = {
     enable?: boolean;
     url?: string;
+    users?: DashboardLogin[];
     username?: string;
     password?: string;
+    saveSampleCurl?: boolean;
 };
 export type DashboardConfig = {
     path: string;
-    username?: string;
-    password?: string;
+    users: DashboardLogin[];
+    saveSampleCurl: boolean;
 };
 export type AutoConfig = {
     prefix: string;

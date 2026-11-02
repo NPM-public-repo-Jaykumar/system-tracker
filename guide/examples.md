@@ -16,7 +16,7 @@ statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "demo",
   failures: true, // also count failed requests (status 500 and above)
-  dashboard: { enable: true, username: "admin", password: "change-me" },
+  dashboard: { enable: true, users: [{ username: "admin", password: "change-me" }] },
 });
 
 const app = express();
@@ -64,7 +64,7 @@ statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "demo",
   failures: true,
-  dashboard: { enable: true, username: "admin", password: "change-me" },
+  dashboard: { enable: true, users: [{ username: "admin", password: "change-me" }] },
 });
 
 const app = express();

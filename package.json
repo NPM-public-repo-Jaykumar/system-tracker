@@ -1,6 +1,6 @@
 {
   "name": "system-tracker",
-  "version": "3.0.17",
+  "version": "3.0.18",
   "description": "See how your Node.js app is used: page views, API calls, live connections and more, counted by the second up to the year, with a built-in dashboard and no tracking code in your routes.",
   "author": "codezeros",
   "repository": {

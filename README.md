@@ -18,11 +18,17 @@ import { statis } from "system-tracker";
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "my-app",
-  dashboard: { enable: true, username: "admin", password: "change-me" },
+  dashboard: {
+    enable: true,
+    users: [{ username: "admin", password: "change-me" }], // add more people to the list
+    saveSampleCurl: true, // the default; false stops keeping recent requests
+  },
 });
 ```
 
-Start your app and open `/system-tracker` on it, for example `http://localhost:3000/system-tracker`.
+Start your app and open `/system-tracker` on it, for example `http://localhost:3000/system-tracker`, and sign in with any user from the list. A wrong username or password gets the same "Wrong username or password", and after 3 wrong tries a username is blocked for 15 minutes, even with the right password.
+
+The dashboard keeps each route's recent requests as curl commands, with their headers and bodies (tokens included). If you'd rather not keep them, set `saveSampleCurl: false`. See [Dashboard](guide/dashboard.md#sign-in) for more.
 
 Using Next.js, Nuxt, SvelteKit or another framework? See [where to add it](guide/frameworks.md).
 

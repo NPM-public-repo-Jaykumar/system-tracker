@@ -62,7 +62,7 @@ statis.init({
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off (e.g. in tests) |
 | `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
-| `dashboard` | off | `{ enable: true, url?: "/system-tracker", username?, password? }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup |
+| `dashboard` | off | `{ enable: true, url?: "/system-tracker", users?: [{ username, password }, ...], saveSampleCurl?: true }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup. Anyone in `users` can sign in (`username` + `password` is a shorthand for one user). A wrong username or password gets the same "Wrong username or password"; 3 wrong tries block that username for 15 minutes, even with the right password (kept in Redis at `system-tracker:login-blocked:{prefix}:{username}`, expiring at the unlock time). `saveSampleCurl: false` keeps no recent requests or failures |
 
 - Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/system-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/system-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Framework page-change requests (Next.js `RSC: 1` and `/_next/data/`, SvelteKit `__data.json`, Nuxt `_payload.json`, Remix/React Router `.data` and `?_data=`, Gatsby `/page-data/`, Inertia, htmx boost, pjax, Turbo Drive) aren't counted, so apps using them need the script to count page changes. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
 
@@ -92,7 +92,7 @@ statis.init({
 - A host or route with `rpc` as a word part (`rpc.example.com`, `rpc-testnet.…`, `/rpc/…`, `/json-rpc`, `/jsonrpc`; not `grpc`/`trpc`) is `RPC`, even under `/api/`. Outgoing calls to such hosts are `RPC` with action `OUT` (needs `track.OUT`; not in the overall total).
 - Anything else under `/api/` is `API`, whatever it returns; only GraphQL there keeps its own type. The dashboard (at `/system-tracker` or a custom `dashboard.url`) and `/system-tracker/view` are never counted.
 - GraphQL and JSON-RPC are recognised from the JSON body on every framework: `req.body` when a body parser set it, otherwise the body as the app read it (up to 64 KB). GraphQL also via `GET ?query=`, `application/graphql` bodies and batches. See [Make every kind of traffic count](#make-every-kind-of-traffic-count) for what still isn't recognised.
-- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this.
+- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this. These requests are kept as sent, tokens included; `dashboard.saveSampleCurl: false` (default `true`) keeps none of them.
 - Where to call `statis.init(...)`:
 - Express, Fastify, Koa, plain Node: top of `server.ts` / `index.js`
 - NestJS: `main.ts`, before `NestFactory.create()`
@@ -302,7 +302,8 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - `Turn it on without a login`: local development only; anyone who can reach the URL sees the traffic and can change boards. Say this plainly.
   - `No dashboard`.
   - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
-  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login.
+  - Tell them more people can sign in by adding them to `users`, and that 3 wrong tries block a username for 15 minutes (deleting `system-tracker:login-blocked:{prefix}:{username}` in Redis unblocks it early).
+  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login. If the user is concerned about that (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay, and no requests or failures are kept. Leave it out otherwise; `true` is the default.
 - `Step-12` Final confirmation
   - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
   - Ask: `Should I make these changes now?` `Implement (Recommended)` / `Change something` / `Stop`.
@@ -322,8 +323,8 @@ statis.init({
   dashboard: {
     enable: Boolean(env.SYSTEM_TRACKER_DASHBOARD_USERNAME && env.SYSTEM_TRACKER_DASHBOARD_PASSWORD),
     url: "/system-tracker", // the default; the app's log prints the full URL at startup
-    username: env.SYSTEM_TRACKER_DASHBOARD_USERNAME,
-    password: env.SYSTEM_TRACKER_DASHBOARD_PASSWORD,
+    users: [{ username: env.SYSTEM_TRACKER_DASHBOARD_USERNAME!, password: env.SYSTEM_TRACKER_DASHBOARD_PASSWORD! }],
+    // saveSampleCurl: false, // only if the user doesn't want recent requests (tokens included) kept
   },
 });
 ```
@@ -354,7 +355,7 @@ statis.init({
 - Do not add tracking calls to routes, controllers, services, workers or jobs; system-tracker has no manual tracking API.
 - The prefix is the project's environment variable (Step-4). Never use per-request prefixes such as `qa-server:${userId}`.
 - In tests, pass `enabled: false` to `statis.init(...)`.
-- Set up `dashboard` as chosen in Step-11. With a login, read the username and password from env variables and guard `enable` with them, as in [Config values](#config-values).
+- Set up `dashboard` as chosen in Step-11. With a login, read the username and password from env variables into `users` and guard `enable` with them, as in [Config values](#config-values). Add `saveSampleCurl: false` only when the user asked for it.
 
 ## After all changes are done
 
@@ -372,7 +373,7 @@ Project: <name> (<path>)
 - ignored paths: <list or none>, bots: <skipped / counted>
 - failures key: on (`failures: true`)
 - time periods: sec <on/off, expiry> · min <…> · hour <…> · day <…> · month <…> · year <…>
-- dashboard: <URL, with/without login, or off>
+- dashboard: <URL, with/without login, or off>; recent requests as curl: <kept / off (saveSampleCurl: false)>
 - Redis connection: <reused client / URL from <variable>>
 - env variables added: <names and files, or none>; set them on your hosting too
 

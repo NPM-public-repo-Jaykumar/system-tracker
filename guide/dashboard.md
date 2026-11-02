@@ -11,8 +11,11 @@ statis.init({
   dashboard: {
     enable: true,            // default: false
     url: "/system-tracker",  // default: "/system-tracker"
-    username: "admin",       // optional: no login when omitted
-    password: "change-me",   // optional: set both or neither
+    users: [                 // optional: no login when omitted
+      { username: "admin", password: "change-me" },
+      { username: "ops", password: "another-strong-one" },
+    ],
+    saveSampleCurl: true,    // default: true; false keeps no recent requests
   },
 });
 ```
@@ -20,14 +23,26 @@ statis.init({
 Then open `/system-tracker` on your app's own host and port, for example `http://localhost:4000/system-tracker`. Your app's log prints the full URL once, when its server starts (or, when system-tracker starts after the server, as with Next.js, on the first request):
 
 ```text
-[system-tracker] dashboard: http://localhost:4000/system-tracker (sign in with dashboard.username and dashboard.password)
+[system-tracker] dashboard: http://localhost:4000/system-tracker (sign in with a login from dashboard.users)
 ```
 
 | Option | Default | What it does |
 | --- | --- | --- |
 | `dashboard.enable` | `false` | Serve the dashboard |
 | `dashboard.url` | `"/system-tracker"` | The path it's served at (leading and trailing `/` are optional) |
-| `dashboard.username`, `dashboard.password` | — | Show a sign-in page. Set both or neither |
+| `dashboard.users` | — | Who can sign in: a list of `{ username, password }`. Show a sign-in page when set. See [Sign-in](#sign-in) |
+| `dashboard.username`, `dashboard.password` | — | A shorthand for a single user. Set both or neither; they're added to `users` |
+| `dashboard.saveSampleCurl` | `true` | Keep each route's recent requests and failures as curl. `false` keeps none. See [Recent requests and failures](#recent-requests-and-failures) |
+
+## Sign-in
+
+With `users` set, the dashboard shows a sign-in page and anyone in the list can sign in.
+
+- A wrong username and a wrong password get the same answer, "Wrong username or password", so the page never tells which usernames exist. Each wrong try also waits 400 ms.
+- After 3 wrong tries for a username, that username is blocked for 15 minutes, even with the right password. The page says "Too many failed sign-ins for this username. Try again in 15 minutes." Usernames that aren't in the list are blocked the same way. Other users can still sign in.
+- The 3 tries count within 15 minutes of the first one. A successful sign-in clears them.
+- The block is kept in your Redis, so every instance of your app shares it: `system-tracker:login-blocked:{prefix}:{username}` exists while the username is blocked, its value is the unlock time (in ms) and it expires at that time. Failed tries are counted at `system-tracker:login-fails:{prefix}:{username}`. To unblock someone early, delete their `login-blocked` key. While Redis can't be reached, both are kept in the app's memory.
+- Each user gets their own session. Changing a user's password, or removing them from the list, signs out only that user.
 
 Four tabs, and each part loads only when you open it:
 
@@ -50,7 +65,7 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 **Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `system-tracker:reports:{prefix}` (a list) and `system-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
 
-**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only system-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.username` and `dashboard.password`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[system-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
+**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only system-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.users`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[system-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
 
 **Problems**: the rules below are checked over the picked period, against the period before it. Spikes, drops and recent failures use steps that fit the period: minutes for the last 15 minutes and the last hour, hours for today, days for a week or month, months for a quarter or year. Every complete step inside the period is searched, so a burst ten minutes ago still shows in the last hour, with its time ("40× its usual traffic at 17:31"); the usual level is the median of the 30 steps before it, or their average when most are empty, and hours and days are compared with the same hour or weekday earlier. Today and longer periods also list what the last hour found minute by minute, tagged "last hour", since a burst of a few minutes doesn't show in hourly or daily totals. The badge on the Insights tab and the Overview always show what's unusual right now (the last 30 minutes and today, like this table); the badge refreshes on every page, and those alerts are always in the list too, tagged "right now", whatever the period. Top routes can be folded away; the dashboard remembers it. Each refresh checks every route counted today, and the minute-by-minute traffic of up to 100 of them (the busiest, plus any with failures):
 
@@ -104,6 +119,14 @@ What's kept:
 - HTTP requests your app receives, and outgoing calls made with `fetch`, `http` or `https` (axios, got and node-fetch use these). An outgoing body is kept when it's text: a string, `URLSearchParams` or a buffer for `fetch`, and whatever is written to the request for `http` and `https`. Form data and streams aren't read. WebSocket traffic and gRPC have no curl.
 - Saved in your Redis as lists at `system-tracker:samples:{prefix}:{TYPE}:{ACTION}:{name}` and `system-tracker:failures:{prefix}:{TYPE}:{ACTION}:{name}`, kept 30 days after their last write. Resetting a route, a type or everything for all time deletes them too.
 - Only while the dashboard is on. Without `dashboard.enable`, nothing is kept. So a route can have counts but no requests to show: counts from before the dashboard was turned on, or older than 30 days. The next request shows up within a minute.
+
+If you'd rather not keep requests, because they hold tokens, cookies and personal data, turn them off:
+
+```ts
+dashboard: { enable: true, users: [/* … */], saveSampleCurl: false },
+```
+
+Then no requests or failures are kept, request bodies aren't read for them, and each route's page says they're off. Counts and charts work as before. Requests kept earlier aren't shown, and they're deleted 30 days after their last write (or right away with **Reset data**).
 
 ## Settings tab
 
@@ -163,6 +186,6 @@ How it behaves:
 - Pick how often it refreshes: live (every second), 5 s, 30 s (the default), 1 min, 5 min, 15 min, or off. ↻ refreshes right away. It doesn't refresh while the tab is hidden. A chart under your mouse pointer waits, so what you're reading holds still; it catches up as soon as the pointer leaves.
 - It's dark by default; the theme button switches to light. The browser remembers both choices.
 - It works on any screen size: on tablets and phones the layout stacks, tables scroll sideways and charts keep their proportions.
-- With a username and password, signing in sets an `HttpOnly`, `SameSite=Strict` cookie for 7 days. Changing the password signs everyone out.
-- Without them, anyone who can reach the URL can see your routes and traffic, the recent requests with their headers and bodies, and change your boards. The page shows a warning, and the server logs one at startup. In production, set a login and serve it over HTTPS.
+- With `users` set, signing in sets an `HttpOnly`, `SameSite=Strict` cookie for 7 days. See [Sign-in](#sign-in) for blocked usernames.
+- Without `users`, anyone who can reach the URL can see your routes and traffic, the recent requests with their headers and bodies, and change your boards. The page shows a warning, and the server logs one at startup. In production, set a login and serve it over HTTPS.
 - Times are in IST, like the bucket ids in the keys.
