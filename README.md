@@ -66,10 +66,9 @@ Express, NestJS, Fastify, Koa and plain Node, Next.js, Nuxt, SvelteKit, Remix an
 - [Settings](guide/settings.md): connecting to Redis, what to track or skip, and how long counts are kept
 - [How it works](guide/how-it-works.md): how each request is sorted, how routes are named, and reading the numbers in your own code
 
-## Try it
+## Examples
 
-- Online demo: <a href="https://stackblitz.com/edit/stackblitz-starters-vfzwhow5?file=server.ts" target="_blank" rel="noopener noreferrer">TypeScript</a> · <a href="https://stackblitz.com/edit/stackblitz-starters-akuiwtmr?file=server.js" target="_blank" rel="noopener noreferrer">JavaScript</a>
-- [Express + TypeScript](examples/express-ts/server.ts) and [Express + JavaScript](examples/express-js/server.js): setup plus a `/api/statistics` endpoint that reads the counts
-- [A page calling RPC endpoints](html-rpc-calls-demo): counts the calls your server makes to them, with `track: { OUT: true }` and no tracking code in the handlers
+- [Express with TypeScript or JavaScript](guide/examples.md#express-with-typescript): the dashboard, and an endpoint that reads the counts back
+- [Count calls to RPC endpoints](guide/examples.md#count-calls-to-rpc-endpoints): the calls your server makes, with no tracking code in the handler
 
 If `npm install` stops with `ERESOLVE`, the clash is between other packages in your project (system-tracker has no peer dependencies). Add `--legacy-peer-deps`. TypeScript types are included; see [the list](guide/settings.md#typescript).
