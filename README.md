@@ -325,7 +325,7 @@ Each time the path changes (`history.pushState`, `replaceState`, the back and fo
 
 With `enabled: false`, the script isn't served. The tag then gets a 404, which doesn't affect your pages.
 
-Next.js fetches a page's data when the browser moves to it (requests with an `RSC: 1` header in the App Router, and `/_next/data/...` in the Pages Router). Those aren't counted as `API` calls; the script counts the page change instead.
+Frameworks fetch a page's data or HTML from a script when the browser moves to it: Next.js (`RSC: 1`, `/_next/data/...`), SvelteKit (`__data.json`), Nuxt (`_payload.json`), Remix and React Router (`.data`, `?_data=`), Gatsby (`/page-data/`), Inertia (`X-Inertia`), htmx boost (`HX-Boosted`), pjax (`X-PJAX`) and Turbo Drive. Those aren't counted as `API` calls or page views; the script counts the page change instead.
 
 #### Content Security Policy
 
@@ -466,7 +466,7 @@ Build dashboards of your own. The Boards tab has two parts:
   | Everyday overview | everyone | insights, totals, traffic by type, the mix, busiest routes, 30 days |
   | DevOps / SRE | on-call, operations | requests per second, 5xx, failure rate, spikes, routes with 5xx |
   | Product owner | product | daily and monthly usage, most used features and pages, pages vs API |
-  | Backend developer | developers | API routes with 5xx, calls by HTTP method, GraphQL and RPC operations |
+  | Backend developer | developers | API routes with 5xx, calls by HTTP method, GraphQL operations, other requests |
   | QA & testing | QA | 5xx per minute and per route, failure rate, anything new or unusual |
   | API health | API teams | API calls, failures and failure rate, route by route |
   | Live wall | big screens | per-second traffic and this minute, with Live refresh |
@@ -735,17 +735,17 @@ Every type, with its default:
 statis.init({
   // ...
   track: {
-    API: true,      // JSON / REST endpoints          demo:API:GET:api/users/<id>
+    API: true,      // /api/... and JSON / REST       demo:API:GET:api/users/<id>
     WEB: true,      // pages (HTML responses)         demo:WEB:GET:products/<id>
     GRAPHQL: true,  // GraphQL operations             demo:GRAPHQL:QUERY:GetUser
-    RPC: true,      // JSON-RPC calls                 demo:RPC:CALL:eth_getBalance
+    RPC: true,      // JSON-RPC, tRPC, rpc hosts and routes  demo:RPC:CALL:eth_getBalance
     WSS: true,      // WebSocket connections, messages and Socket.IO events
                     //                                demo:WSS:CONNECT:ws/chat
     SSE: true,      // server-sent event streams      demo:SSE:GET:events/prices
     GRPC: true,     // gRPC calls                     demo:GRPC:CALL:user.UserService/GetUser
     OTHER: true,    // requests that match no route   demo:OTHER:GET:<unmatched>
     STATIC: false,  // JS, CSS, images, fonts         demo:STATIC:GET:assets/<file>
-    OUT: false,     // calls your app makes to others demo:OUT:GET:rpc-testnet.supra.com/rpc/v1/block
+    OUT: false,     // calls your app makes to others demo:OUT:GET:api.stripe.com/v1/charges
   },
   global: {
     total: true,    // demo:global:{bucket}:{bucket_id}         — every request
@@ -766,7 +766,7 @@ statis.init({
 
 Turning a type off:
 
-- `track.API: false`: JSON/REST requests are not counted at all.
+- `track.API: false`: requests under `/api/` and JSON/REST requests are not counted at all.
 - `track.WEB: false`: page views are not counted.
 - `track.GRAPHQL: false` / `track.RPC: false`: those calls are not counted. They do not fall back to `API`.
 - `track.WSS: false`: no `CONNECT`, `MESSAGE` or `EVENT` keys.
@@ -877,8 +877,8 @@ statis.init({
 - `maxNamesPerType`: each `TYPE` keeps at most this many names. New names after that are counted as `<other>`:
 
   ```text
-  demo:RPC:CALL:eth_getBalance:min:…   ← one of the first 200 names
-  demo:RPC:CALL:<other>:min:…          ← everything after that
+  demo:API:GET:api/users/<id>:min:…    ← one of the first 200 names
+  demo:API:GET:<other>:min:…           ← everything after that
   ```
 
 - `collapseAfter`: once one position in a URL has seen more than this many different values, that position becomes `<slug>`:
@@ -972,7 +972,7 @@ Totals:
 demo:global:min:2026-10-29-23-35         all requests
 demo:API:global:min:2026-10-29-23-35     all API requests
 demo:WEB:global:min:2026-10-29-23-35     all page views
-demo:RPC:global:min:2026-10-29-23-35     all JSON-RPC calls
+demo:RPC:global:min:2026-10-29-23-35     all RPC calls, in and out
 ```
 
 Every type has its own `{prefix}:{TYPE}:global` total. `demo:global` counts requests, connections and calls coming into your app. WebSocket messages, Socket.IO events and outgoing calls are left out of it; they are still counted in `demo:WSS:global` and `demo:OUT:global`.
@@ -983,14 +983,14 @@ Failed requests (status 500 or higher) can also get their own key; see [Choose w
 
 | TYPE | What | ACTION | Example key |
 | --- | --- | --- | --- |
-| `API` | JSON / REST endpoints | HTTP method | `demo:API:POST:api/orders:min:…` |
+| `API` | Everything under `/api/` (except GraphQL), and JSON / REST endpoints elsewhere | HTTP method | `demo:API:POST:api/orders:min:…` |
 | `WEB` | Pages (HTML responses) | HTTP method | `demo:WEB:GET:blog/<slug>:min:…` |
 | `GRAPHQL` | GraphQL operations | `QUERY`, `MUTATION`, `SUBSCRIPTION` | `demo:GRAPHQL:QUERY:GetUser:min:…` |
-| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION` | `demo:RPC:CALL:eth_getBalance:min:…` |
 | `WSS` | WebSocket connections, messages, Socket.IO events | `CONNECT`, `MESSAGE`, `EVENT` | `demo:WSS:CONNECT:ws/chat:min:…` |
 | `SSE` | Server-sent event streams | HTTP method | `demo:SSE:GET:events/prices:min:…` |
 | `GRPC` | gRPC, gRPC-Web and Connect calls | `CALL` | `demo:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `OTHER` | Requests that match no route | HTTP method | `demo:OTHER:GET:<unmatched>:min:…` |
+| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures, anything on a host or route with `rpc` in it, and calls out to such hosts | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION`, the HTTP method, or `OUT` for calls your app makes | `demo:RPC:CALL:eth_getBalance:min:…`, `demo:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `OTHER` | Requests that match no route, and scanner paths (`.php`, `.env`, `wp-…`) | HTTP method | `demo:OTHER:GET:<unmatched>:min:…` |
 | `STATIC` | JS, CSS, images, fonts — **off by default** | HTTP method | `demo:STATIC:GET:assets/<file>:min:…` |
 | `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `demo:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
 
@@ -999,16 +999,22 @@ How each type is detected, checked in this order (the first match wins):
 1. **Your own naming**: the `name` option, if it returns a name. See [Name requests yourself](#name-requests-yourself).
 2. **Custom types**: the path matches one of your `types`. See [Custom types](#custom-types).
 3. **Operations**: the path matches one of your `operations`. See [One URL, many operations](#one-url-many-operations).
-4. **Next.js Server Actions** (`RPC`, `ACTION`): a `POST` with a `Next-Action` header. The name is the page it was called from (`/` for the home page), since Next.js gives the action itself a new id on every build.
-5. **tRPC** (`RPC`): the path ends in `/trpc/{procedure}`, as in `/api/trpc/user.byId`. A `GET` is a `QUERY`, a `POST` a `MUTATION`, and an event stream a `SUBSCRIPTION`. In a batch (`/trpc/a.list,b.count?batch=1`), each procedure is counted.
-6. **gRPC-Web and Connect** (`GRPC`): a `POST` to `/package.Service/Method` with a `Content-Type` of `application/grpc-web…`, `application/grpc…` or `application/connect+…`, or a `Connect-Protocol-Version` header.
-7. **`RPC`**: the parsed request body has `"jsonrpc": "2.0"` and a `method`. A call with an `id` is `CALL` and one without is `NOTIFY`. In a batch (`[{...}, {...}]`), each call is counted under its method and in `demo:RPC:global`, while `demo:global` counts the HTTP request once. Repeated methods in a batch are merged into one Redis write per key.
-8. **`GRAPHQL`**: the parsed request body has a `query` that is a GraphQL document (it starts with `{` or with `query`, `mutation` or `subscription` and contains `{`). The name is `operationName`, else the name in the document, else `<anonymous>`. A REST body like `{"query": "shoes"}` stays `API`. Also recognised: a `GET` with the document in `?query=` (and `?operationName=`), an `application/graphql` body, and a batch (`[{...}, {...}]`), where each operation is counted.
-9. **`OTHER`**: the response status is 404 and no route matched. All of these share the single name `<unmatched>`, so bot scans can't create new keys.
-10. **`SSE`**: the response `Content-Type` is `text/event-stream`.
-11. **`STATIC`**: the file extension is `js`, `mjs`, `css`, `map`, `png`, `jpg`, `jpeg`, `gif`, `svg`, `ico`, `webp`, `avif`, `woff`, `woff2`, `ttf`, `otf`, `eot`, `mp4` or `webm`, or the path starts with `/_next/static/`. The file name becomes `<file>`.
-12. **`WEB`**: the response `Content-Type` is `text/html` and either the status is below 400 or the request asked for HTML (a browser `Accept: text/html` or `Sec-Fetch-Dest: document` header). A response with no `Content-Type` also counts as `WEB` when the browser asked for a page, for example a `304 Not Modified` revalidation or a page load the user cancelled. An HTML error page returned to a script or API client counts as `API`.
-13. **`API`**: everything else.
+4. **`rpc` in the host or route** (`RPC`): `rpc` is a word part of the `Host` (or `X-Forwarded-Host`) or of the path, as in `rpc.example.com`, `rpc-testnet.example.com`, `/rpc/v1`, `/json-rpc` or `/jsonrpc`. Not `grpc`, `trpc` or `xrpcd`. This wins over `/api/`. A JSON-RPC body is named by its method, a tRPC call by its procedure, anything else by HTTP method and route.
+5. **`/api/`** (`API`): the path is `/api` or starts with `/api/`, in any letter case. It's `API` whatever it returns: JSON, HTML, an event stream, a file, a JSON-RPC body or a tRPC call. Only a GraphQL operation (see `GRAPHQL` below) keeps its own type. A 404 that matched no route is named `<unmatched>`.
+6. **Next.js Server Actions** (`RPC`, `ACTION`): a `POST` with a `Next-Action` header. The name is the page it was called from (`/` for the home page), since Next.js gives the action itself a new id on every build.
+7. **tRPC** (`RPC`): the path ends in `/trpc/{procedure}`, as in `/trpc/user.byId`. A `GET` is a `QUERY`, a `POST` a `MUTATION`, and an event stream a `SUBSCRIPTION`. In a batch (`/trpc/a.list,b.count?batch=1`), each procedure is counted.
+8. **gRPC-Web and Connect** (`GRPC`): a `POST` to `/package.Service/Method` with a `Content-Type` of `application/grpc-web…`, `application/grpc…` or `application/connect+…`, or a `Connect-Protocol-Version` header.
+9. **JSON-RPC** (`RPC`): the parsed request body has `"jsonrpc": "2.0"` and a `method`. A call with an `id` is `CALL` and one without is `NOTIFY`. In a batch (`[{...}, {...}]`), each call is counted under its method and in `demo:RPC:global`, while `demo:global` counts the HTTP request once. Repeated methods in a batch are merged into one Redis write per key.
+10. **`GRAPHQL`**: the parsed request body has a `query` that is a GraphQL document (it starts with `{` or with `query`, `mutation` or `subscription` and contains `{`). The name is `operationName`, else the name in the document, else `<anonymous>`. A REST body like `{"query": "shoes"}` stays `API`. Also recognised: a `GET` with the document in `?query=` (and `?operationName=`), an `application/graphql` body, and a batch (`[{...}, {...}]`), where each operation is counted.
+11. **`OTHER`**: the response status is 404 and no route matched, or the path is one only vulnerability scanners ask a Node app for (`.php`, `.asp`, `.env`, `.git/`, `wp-…`, `phpmyadmin`, `cgi-bin/`), even when a catch-all route answers it. All of these share the single name `<unmatched>`, so bot scans can't create new keys. (Scanner paths are checked before the `rpc` and `/api/` rules, right after your own `operations`.)
+12. **`SSE`**: the response `Content-Type` is `text/event-stream`.
+13. **`STATIC`**: the file extension is `js`, `mjs`, `css`, `map`, `png`, `jpg`, `jpeg`, `gif`, `svg`, `ico`, `webp`, `avif`, `woff`, `woff2`, `ttf`, `otf`, `eot`, `mp4` or `webm`, or the path starts with `/_next/static/`. Site files for crawlers and browsers count here too: `robots.txt`, `sitemap*.xml`, `*.webmanifest`, `manifest.json`, `ads.txt`, `humans.txt`, `security.txt` and `/.well-known/…`. The file name becomes `<file>`.
+14. **`WEB`**: what the browser shows as a page. The browser says so in its [Fetch Metadata](https://developer.mozilla.org/docs/Web/HTTP/Headers/Sec-Fetch-Mode) headers, which pages can't fake: `Sec-Fetch-Mode: navigate` or `Sec-Fetch-Dest: document` / `iframe` for a link, the address bar or a form. Clients that don't send them (curl, crawlers) count as a page load when they ask for `text/html`.
+    - A request made by a script is `API`, even when it gets HTML back: `Sec-Fetch-Dest: empty` (fetch, XMLHttpRequest), `X-Requested-With: XMLHttpRequest`, `HX-Request` (htmx) or `Turbo-Frame`.
+    - Otherwise a `text/html` (or XHTML) response is `WEB` when its status is below 400. An HTML error page is `WEB` only for a page load.
+    - A page load with no `Content-Type` (a `304 Not Modified`, a load the user cancelled) or a redirect (a form post, a login) is `WEB`.
+    - JSON opened in the address bar is still `API`.
+15. **`API`**: everything else.
 
 Detected outside this order:
 
@@ -1019,6 +1025,7 @@ Detected outside this order:
   - Socket.IO's own traffic (its polling requests and raw messages) is not counted separately.
 - **`GRPC`**: an HTTP/2 stream with `Content-Type: application/grpc`. The name is the gRPC method path.
 - **`OUT`**: requests made with `http`, `https` or `fetch`. The name is the host, plus `_port` for a non-default port, then the path, with the query string dropped. For example, `127.0.0.1_4000/rpc/v1/block`. The dashboard marks each one as a call to your backend or to a third party (see [Your own domains](#your-own-domains)).
+  A call to a host or path with `rpc` in it (the same word-part rule as above, e.g. `rpc-testnet.supra.com`) is counted as `RPC` with the action `OUT` instead, e.g. `demo:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block`. Like `OUT`, it's in `demo:RPC:global` but not in `demo:global`, and it's only watched while `track.OUT` is on.
 
 #### Your own domains
 
@@ -1042,12 +1049,13 @@ Either way they stay outgoing calls: they're counted in `demo:OUT:global`, not i
 Always skipped:
 
 - `OPTIONS` and `HEAD` requests (change with `ignore.methods`)
-- Next.js link prefetches (`Next-Router-Prefetch`, `Purpose: prefetch` or `Sec-Purpose: prefetch` headers)
-- Next.js client navigation data (an `RSC: 1` header that isn't a page load, or `/_next/data/...`). [The page-view script](#page-views-in-single-page-apps) counts those page changes
+- Prefetches (`Next-Router-Prefetch`, `Purpose: prefetch`, `Sec-Purpose: prefetch` or `X-Sec-Purpose: prefetch` headers)
+- Page changes a framework fetches from a script: Next.js (`RSC: 1` that isn't a page load, `/_next/data/...`), SvelteKit (`…/__data.json`), Nuxt (`…/_payload.json`), Remix and React Router (`….data`, `?_data=`), Gatsby (`/page-data/…`), and `GET`s with `X-Inertia`, `HX-Boosted`, `X-PJAX`, or `X-Turbo-Request-Id` outside a Turbo Frame. [The page-view script](#page-views-in-single-page-apps) counts those page changes
 - Socket.IO long-polling requests (`/socket.io/...`)
+- system-tracker's own URLs: the dashboard and its API at `/system-tracker` or your own `dashboard.url`, and the page-view script at `/system-tracker/view`. This holds in any letter case, and for anything under `/system-tracker` even with the dashboard off
 - Next.js's own WebSocket in development (`/_next/webpack-hmr`, used for hot reload)
 
-`RPC` and `GRAPHQL` are read from the JSON body: `req.body` when your app's body parser set it, otherwise the body as your app read it (Fastify, Koa, Next.js and plain Node keep theirs elsewhere). system-tracker never reads the body itself; it sees it while your app does, up to 64 KB. A body your app never reads, or a larger one without `req.body`, counts as `API`.
+JSON-RPC and GraphQL are read from the JSON body: `req.body` when your app's body parser set it, otherwise the body as your app read it (Fastify, Koa, Next.js and plain Node keep theirs elsewhere). system-tracker never reads the body itself; it sees it while your app does, up to 64 KB. A body your app never reads, or a larger one without `req.body`, counts as `API`.
 
 ### How routes are named
 

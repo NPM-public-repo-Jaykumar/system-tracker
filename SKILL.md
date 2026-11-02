@@ -64,7 +64,7 @@ statis.init({
 | `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
 | `dashboard` | off | `{ enable: true, url?: "/system-tracker", username?, password? }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup |
 
-- Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/system-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/system-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Next.js navigation data requests (`RSC: 1`, `/_next/data/`) aren't counted. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
+- Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/system-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/system-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Framework page-change requests (Next.js `RSC: 1` and `/_next/data/`, SvelteKit `__data.json`, Nuxt `_payload.json`, Remix/React Router `.data` and `?_data=`, Gatsby `/page-data/`, Inertia, htmx boost, pjax, Turbo Drive) aren't counted, so apps using them need the script to count page changes. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
 
 - Key layout:
 - `{prefix}:{TYPE}:{ACTION}:{name}:{bucket}:{bucket_id}`
@@ -77,17 +77,20 @@ statis.init({
 
 | TYPE | ACTION | Example key |
 | --- | --- | --- |
-| `API` | HTTP method | `qa-server:API:GET:api/users/<id>:min:2026-10-29-23-35` |
+| `API` (everything under `/api/` except GraphQL, and JSON elsewhere) | HTTP method | `qa-server:API:GET:api/users/<id>:min:2026-10-29-23-35` |
 | `WEB` | HTTP method | `qa-server:WEB:GET:products/<id>:min:…` |
 | `GRAPHQL` | `QUERY` / `MUTATION` / `SUBSCRIPTION` | `qa-server:GRAPHQL:QUERY:GetUser:min:…` |
-| `RPC` | `CALL` / `NOTIFY` | `qa-server:RPC:CALL:eth_getBalance:min:…` |
 | `WSS` | `CONNECT` / `MESSAGE` / `EVENT` | `qa-server:WSS:CONNECT:ws/chat:min:…` |
 | `SSE` | HTTP method | `qa-server:SSE:GET:events/prices:min:…` |
 | `GRPC` | `CALL` | `qa-server:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `OTHER` | HTTP method | `qa-server:OTHER:GET:<unmatched>:min:…` |
+| `RPC` (JSON-RPC, tRPC, Server Actions, a host or route with `rpc` in it; calls out to rpc hosts use action `OUT`) | `CALL` / `NOTIFY` / `ACTION` / `QUERY` / `MUTATION` / `SUBSCRIPTION`, HTTP method, or `OUT` | `qa-server:RPC:CALL:eth_getBalance:min:…`, `qa-server:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `OTHER` (404s, scanner paths) | HTTP method | `qa-server:OTHER:GET:<unmatched>:min:…` |
 | `STATIC` (off) | HTTP method | `qa-server:STATIC:GET:assets/<file>:min:…` |
 | `OUT` (off) | HTTP method | `qa-server:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
 
+- `WEB` is only what the browser shows as a page (Fetch Metadata `navigate` / `document`, or `Accept: text/html` from clients without it). Requests made by scripts (fetch, XHR, htmx, Turbo Frames) are `API` even when they return HTML. Scanner paths (`.php`, `.env`, `wp-…`) are `OTHER`; `robots.txt`, sitemaps, manifests and `/.well-known/` are `STATIC`.
+- A host or route with `rpc` as a word part (`rpc.example.com`, `rpc-testnet.…`, `/rpc/…`, `/json-rpc`, `/jsonrpc`; not `grpc`/`trpc`) is `RPC`, even under `/api/`. Outgoing calls to such hosts are `RPC` with action `OUT` (needs `track.OUT`; not in the overall total).
+- Anything else under `/api/` is `API`, whatever it returns; only GraphQL there keeps its own type. The dashboard (at `/system-tracker` or a custom `dashboard.url`) and `/system-tracker/view` are never counted.
 - GraphQL and JSON-RPC are recognised from the JSON body on every framework: `req.body` when a body parser set it, otherwise the body as the app read it (up to 64 KB). GraphQL also via `GET ?query=`, `application/graphql` bodies and batches. See [Make every kind of traffic count](#make-every-kind-of-traffic-count) for what still isn't recognised.
 - With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this.
 - Where to call `statis.init(...)`:
@@ -178,10 +181,10 @@ Don't assume a kind of traffic is counted because the library is installed. For 
 | --- | --- | --- |
 | GraphQL | the operation arrives as JSON `{ "query": "…" }` (POST, read by the app), `GET ?query=`, or `application/graphql` | Persisted queries that send only a hash (`extensions.persistedQuery`, no `query`): `operations: [{ path: "/graphql", type: "GRAPHQL", read: (b) => b.operationName }]`. Unnamed operations count as `<anonymous>`: name them in the client, or read a name the same way. |
 | GraphQL subscriptions | over WebSockets (`graphql-ws`, `subscriptions-transport-ws`) they're counted as `WSS` connections and messages on the socket's path, not per operation | Say so; nothing to change. |
-| Next.js Server Actions | a `POST` with a `Next-Action` header; counted as `RPC` `ACTION`, named by the page | Nothing to change. |
-| tRPC | the path ends in `/trpc/{procedure}` (e.g. `/api/trpc/user.byId`); `RPC` `QUERY` / `MUTATION` / `SUBSCRIPTION` | Nothing to change. |
+| Next.js Server Actions | a `POST` with a `Next-Action` header; counted as `RPC` `ACTION`, named by the page (under `/api/`: `API`) | Nothing to change. |
+| tRPC | the path ends in `/trpc/{procedure}` (e.g. `/trpc/user.byId`); `RPC` `QUERY` / `MUTATION` / `SUBSCRIPTION`. Under `/api/` (e.g. `/api/trpc/user.byId`) it's `API`, by route | To count procedures by name under `/api/`: `operations` or `name`. |
 | gRPC-Web, Connect | `POST /package.Service/Method` with a gRPC-Web, gRPC or Connect content type; counted as `GRPC` | Nothing to change. |
-| JSON-RPC | the body has `"jsonrpc": "2.0"` and a `method` | RPC-style bodies without `jsonrpc` (`{ "action": "swap" }`, `{ "op": … }`): `operations: [{ path: "/action", type: "RPC", read: (b) => b.action }]`. |
+| JSON-RPC | the body has `"jsonrpc": "2.0"` and a `method`; counted as `RPC` `CALL` / `NOTIFY` by method. Under `/api/` it's `API` by route, unless the route or host has `rpc` in it (`/api/rpc`) | Bodies without `jsonrpc` (`{ "action": "swap" }`, `{ "op": … }`), or JSON-RPC under a plain `/api/` route by method: `operations: [{ path: "/action", type: "RPC", read: (b) => b.action }]`. |
 | WebSockets | the socket server runs on a Node `http`/`https` server in the same process (`ws`, `socket.io`, `new WebSocketServer({ port })` all do) | Messages and Socket.IO events are counted only when `ws` / `socket.io` resolve from the folder the app starts in (its `node_modules`). In a monorepo started from the root, check this. `uWebSockets.js`, `Bun.serve` and `Deno.serve` aren't Node servers and can't be counted; say so. |
 | Server-sent events | the response sets `Content-Type: text/event-stream` | Set that header on the stream (SSE needs it anyway). |
 | gRPC | `@grpc/grpc-js` serves in the same process | A proxy or separate binary isn't counted; say so. |
@@ -190,7 +193,7 @@ Don't assume a kind of traffic is counted because the library is installed. For 
 
 Then make sure nothing important ends up under a catch-all name. Go through the routes you listed and predict each key; fix every one that would land in:
 
-- `OTHER:…:<unmatched>`: on frameworks other than Express, any 404 is `OTHER`, including a real route answering "not found" (`GET /api/users/999`). Keep those under their route with a `types` entry that reuses the built-in type, for example `types: [{ path: "/api/*", type: "API" }]`.
+- `OTHER:…:<unmatched>`: on frameworks other than Express, any 404 outside `/api/` is `OTHER`, including a real route answering "not found" (`GET /v1/users/999`). Keep those under their route with a `types` entry that reuses the built-in type, for example `types: [{ path: "/v1/*", type: "API" }]`. Under `/api/` such a 404 is `API:…:<unmatched>`.
 - `<unknown>`: an `operations` `read` that returns nothing for some requests. Read the field those requests do send, or fall back to another one.
 - `<anonymous>`: GraphQL operations without a name (see the table).
 - `<other>`: more names in a type than `limits.maxNamesPerType` (200). If the app really has more routes, raise it to fit, with room to grow.
@@ -268,11 +271,11 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   | Option | Type | Default | Recommend when |
   | --- | --- | --- | --- |
   | People opening pages of your website | `WEB` | on | the project serves pages |
-  | API calls to your backend | `API` | on | it has API routes |
+  | API calls to your backend (everything under `/api/`, and JSON elsewhere) | `API` | on | it has API routes |
   | GraphQL queries and mutations | `GRAPHQL` | on | GraphQL is found |
-  | JSON-RPC calls, Next.js Server Actions, tRPC procedures | `RPC` | on | JSON-RPC, `"use server"` actions or tRPC are found |
   | Real-time connections and messages (WebSockets, Socket.IO) | `WSS` | on | `ws` or `socket.io` is found |
   | Live streams to the browser (server-sent events) | `SSE` | on | `text/event-stream` is found |
+  | JSON-RPC calls, Next.js Server Actions, tRPC procedures, and anything on a host or route with `rpc` in it (calls out to RPC hosts too, with `OUT` on) | `RPC` | on | JSON-RPC, `"use server"` actions, tRPC, `/rpc` routes or RPC providers are found |
   | gRPC calls | `GRPC` | on | gRPC is found |
   | Calls your app makes to its own backend or outside services (RPC providers, payment, email APIs) | `OUT` | off | outgoing calls are found; name them, and list the app's own backend domains in `ownDomains` |
   | Requests to unknown URLs (404s, bot scans) | `OTHER` | on | always |
