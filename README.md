@@ -1,4 +1,4 @@
-# redis-tracker
+# system-tracker
 
 Count every request your Node.js app handles in Redis, per second, minute, hour, day, month and year. That covers API calls, page views, GraphQL, JSON-RPC, WebSockets, Socket.IO, server-sent events and gRPC, plus outgoing calls if you turn them on.
 
@@ -6,14 +6,14 @@ You call it once at startup. Your routes need no tracking code.
 
 ## AI Prompt
 
-Using an AI coding assistant (Claude Code, Cursor, Copilot)? Paste this into it. It looks through your project (or each project, when the folder holds several), asks in plain words what you want to track (website pages, API calls, WebSockets, calls to outside services and more) with a recommended answer for each, then sets up redis-tracker, server and browser parts included:
+Using an AI coding assistant (Claude Code, Cursor, Copilot)? Paste this into it. It looks through your project (or each project, when the folder holds several), asks in plain words what you want to track (website pages, API calls, WebSockets, calls to outside services and more) with a recommended answer for each, then sets up system-tracker, server and browser parts included:
 
 ```
-Read and strictly follow the SKILL.md file to implement the npm package "redis-tracker".
+Read and strictly follow the SKILL.md file to implement the npm package "system-tracker".
 
 References:
-NPM: https://www.npmjs.com/package/redis-tracker
-SKILL.md: https://github.com/NPM-public-repo-Jaykumar/redis-tracker/blob/main/SKILL.md
+NPM: https://www.npmjs.com/package/system-tracker
+SKILL.md: https://github.com/NPM-public-repo-Jaykumar/system-tracker/blob/main/SKILL.md
 ```
 
 ## Contents
@@ -30,19 +30,19 @@ SKILL.md: https://github.com/NPM-public-repo-Jaykumar/redis-tracker/blob/main/SK
 npm:
 
 ```bash
-npm install redis-tracker
+npm install system-tracker
 ```
 
 yarn:
 
 ```bash
-yarn add redis-tracker
+yarn add system-tracker
 ```
 
-If npm stops with `ERESOLVE could not resolve`, the conflict is between other packages already in your project (for example, a package that only supports React 18 in a React 19 app). redis-tracker has no peer dependencies. Install it with:
+If npm stops with `ERESOLVE could not resolve`, the conflict is between other packages already in your project (for example, a package that only supports React 18 in a React 19 app). system-tracker has no peer dependencies. Install it with:
 
 ```bash
-npm install redis-tracker --legacy-peer-deps
+npm install system-tracker --legacy-peer-deps
 ```
 
 ### Quick start
@@ -50,7 +50,7 @@ npm install redis-tracker --legacy-peer-deps
 Add this at the top of your entry file, before your server starts:
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
@@ -75,7 +75,7 @@ Your routes don't change. Next, [set up your framework](#set-up-your-framework),
 Two parts, both in this section for each framework:
 
 - **Server**: call `statis.init(...)` once, as early as possible, in the process that serves your requests. This counts every request.
-- **Browser**: only for apps where moving to another page doesn't reload it (React, Vue, Angular, Svelte, Next.js, Nuxt, SvelteKit, Remix). Add one script to the HTML every page shares, so page changes are counted too. redis-tracker serves it from your server; there's nothing else to install. See [Page views in single-page apps](#page-views-in-single-page-apps) for how it works.
+- **Browser**: only for apps where moving to another page doesn't reload it (React, Vue, Angular, Svelte, Next.js, Nuxt, SvelteKit, Remix). Add one script to the HTML every page shares, so page changes are counted too. system-tracker serves it from your server; there's nothing else to install. See [Page views in single-page apps](#page-views-in-single-page-apps) for how it works.
 
 | Framework | Server: `statis.init` in | Browser: script in |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Two parts, both in this section for each framework:
 | [Fastify, Koa, plain Node](#fastify-koa-plain-node) | `server.ts` / `index.js` | not needed |
 | [Next.js, App Router](#nextjs-app-router) | `instrumentation.ts` | `app/layout.tsx` |
 | [Next.js, Pages Router](#nextjs-pages-router) | `instrumentation.ts` | `pages/_app.tsx` |
-| [Nuxt](#nuxt) | `server/plugins/redis-tracker.ts` | `nuxt.config.ts` |
+| [Nuxt](#nuxt) | `server/plugins/system-tracker.ts` | `nuxt.config.ts` |
 | [SvelteKit](#sveltekit) | `src/hooks.server.ts` | `src/app.html` |
 | [Remix, React Router](#remix-react-router) | `app/entry.server.tsx` | `app/root.tsx` |
 | [Astro](#astro) | `src/middleware.ts` | your layout, with `<ClientRouter />` only |
@@ -98,7 +98,7 @@ Server (`server.ts`):
 
 ```ts
 import express from "express";
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 
@@ -120,7 +120,7 @@ Server (`main.ts`):
 
 ```ts
 import { NestFactory } from "@nestjs/core";
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 import { AppModule } from "./app.module";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
@@ -139,7 +139,7 @@ Browser: not needed; same as Express.
 Server: put the same call at the top of `server.ts` / `index.js`, before the server starts listening:
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 
@@ -155,7 +155,7 @@ Server (`instrumentation.ts`, next to `app/` or in `src/`):
 ```ts
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { statis } = await import("redis-tracker");
+    const { statis } = await import("system-tracker");
     statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
   }
 }
@@ -171,8 +171,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
-        {/* redis-tracker: counts page changes made in the browser */}
-        <Script src="/redis-tracker/view.js" strategy="afterInteractive" />
+        {/* system-tracker: counts page changes made in the browser */}
+        <Script src="/system-tracker/view.js" strategy="afterInteractive" />
       </body>
     </html>
   );
@@ -195,7 +195,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Component {...pageProps} />
-      <Script src="/redis-tracker/view.js" strategy="afterInteractive" />
+      <Script src="/system-tracker/view.js" strategy="afterInteractive" />
     </>
   );
 }
@@ -203,10 +203,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
 #### Nuxt
 
-Server (`server/plugins/redis-tracker.ts`):
+Server (`server/plugins/system-tracker.ts`):
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 export default defineNitroPlugin(() => {
   statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
@@ -219,7 +219,7 @@ Browser (`nuxt.config.ts`):
 export default defineNuxtConfig({
   app: {
     head: {
-      script: [{ src: "/redis-tracker/view.js", defer: true }],
+      script: [{ src: "/system-tracker/view.js", defer: true }],
     },
   },
 });
@@ -230,7 +230,7 @@ export default defineNuxtConfig({
 Server (`src/hooks.server.ts`, with `@sveltejs/adapter-node`):
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 ```
@@ -238,7 +238,7 @@ statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 Browser (`src/app.html`), inside `<head>`:
 
 ```html
-<script src="/redis-tracker/view.js" defer></script>
+<script src="/system-tracker/view.js" defer></script>
 ```
 
 #### Remix, React Router
@@ -246,7 +246,7 @@ Browser (`src/app.html`), inside `<head>`:
 Server (`app/entry.server.tsx`), at the top:
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 ```
@@ -254,7 +254,7 @@ statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 Browser (`app/root.tsx`), inside `<head>`:
 
 ```tsx
-<script src="/redis-tracker/view.js" defer />
+<script src="/system-tracker/view.js" defer />
 ```
 
 #### Astro
@@ -263,7 +263,7 @@ Server (`src/middleware.ts`, with `@astrojs/node`):
 
 ```ts
 import { defineMiddleware } from "astro:middleware";
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
 
@@ -273,7 +273,7 @@ export const onRequest = defineMiddleware((_context, next) => next());
 Browser: only needed with `<ClientRouter />` (view transitions), which changes pages without a reload. Then add it to the layout every page uses, inside `<head>`:
 
 ```astro
-<script is:inline src="/redis-tracker/view.js" defer></script>
+<script is:inline src="/system-tracker/view.js" defer></script>
 ```
 
 #### React, Vue, Angular, Svelte (SPA)
@@ -284,10 +284,10 @@ Browser (`index.html` for Vite and Create React App, `src/index.html` for Angula
 
 ```html
 <!-- the API server also serves the app's files -->
-<script src="/redis-tracker/view.js" defer></script>
+<script src="/system-tracker/view.js" defer></script>
 
 <!-- the app is served from somewhere else (a CDN, or a dev server on another port) -->
-<script src="https://api.example.com/redis-tracker/view.js" data-count-first defer></script>
+<script src="https://api.example.com/system-tracker/view.js" data-count-first defer></script>
 ```
 
 Use the API server's full URL when the pages come from somewhere else. `data-count-first` also counts the first page, since the API server never sees that page load.
@@ -321,7 +321,7 @@ With `enabled: false`, `init` does nothing: no Redis connection and no hooks.
 
 In single-page apps, moving to another page happens in the browser without a reload, so your server sees only the first page load. The script added in [Set up your framework](#set-up-your-framework) reports each page change to your server.
 
-Each time the path changes (`history.pushState`, `replaceState`, the back and forward buttons, or a `#/...` hash route), the script sends the new path to `POST /redis-tracker/view` with `navigator.sendBeacon`. It's counted as a `WEB` page view under the same name as a full page load, so `/products/12` and `/products/7` both count as `products/<id>`. Only the path counts: a new query string or `#section` on the same page doesn't. `track.WEB`, `ignore.paths` and `ignore.bots` apply as usual. The first page load is counted by your server, as before, so it isn't counted twice. Requests for the script and its reports never reach your routes and aren't counted as requests of their own.
+Each time the path changes (`history.pushState`, `replaceState`, the back and forward buttons, or a `#/...` hash route), the script sends the new path to `POST /system-tracker/view` with `navigator.sendBeacon`. It's counted as a `WEB` page view under the same name as a full page load, so `/products/12` and `/products/7` both count as `products/<id>`. Only the path counts: a new query string or `#section` on the same page doesn't. `track.WEB`, `ignore.paths` and `ignore.bots` apply as usual. The first page load is counted by your server, as before, so it isn't counted twice. Requests for the script and its reports never reach your routes and aren't counted as requests of their own.
 
 With `enabled: false`, the script isn't served. The tag then gets a 404, which doesn't affect your pages.
 
@@ -341,7 +341,7 @@ If your app sets one:
   // inside your async RootLayout
   const nonce = (await headers()).get("x-nonce") ?? undefined; // the header your middleware sets
   // ...
-  <Script src="/redis-tracker/view.js" strategy="afterInteractive" nonce={nonce} />
+  <Script src="/system-tracker/view.js" strategy="afterInteractive" nonce={nonce} />
   ```
 
   Without it, the browser blocks the script and page changes aren't counted.
@@ -363,10 +363,10 @@ statis.init({
 });
 ```
 
-Then open `/system-tracker` on your app's own host and port, for example `http://localhost:4000/system-tracker`. Your app's log prints the full URL once, when its server starts (or, when redis-tracker starts after the server, as with Next.js, on the first request):
+Then open `/system-tracker` on your app's own host and port, for example `http://localhost:4000/system-tracker`. Your app's log prints the full URL once, when its server starts (or, when system-tracker starts after the server, as with Next.js, on the first request):
 
 ```text
-[redis-tracker] dashboard: http://localhost:4000/system-tracker (sign in with dashboard.username and dashboard.password)
+[system-tracker] dashboard: http://localhost:4000/system-tracker (sign in with dashboard.username and dashboard.password)
 ```
 
 | Option | Default | What it does |
@@ -394,9 +394,9 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 **Export** (on every screen: the Overview, a type, a route, a board, a template and Settings): downloads what the screen shows, at the range picked on it. That's the numbers at the top, each chart's data over time and each table (for a route: its buckets, newest first; for a board: every chart and table on it; for Settings: storage and what's tracked). Pick CSV, PDF (a print view) or JSON. A route's recent requests and failures are left out, since they can hold tokens. Each export is saved with the reports below, so you can download it again later.
 
-**Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `redis-tracker:reports:{prefix}` (a list) and `redis-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
+**Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `system-tracker:reports:{prefix}` (a list) and `system-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
 
-**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only redis-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.username` and `dashboard.password`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[redis-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
+**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only system-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.username` and `dashboard.password`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[system-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
 
 **Problems**: the rules below are checked over the picked period, against the period before it. Spikes, drops and recent failures use steps that fit the period: minutes for the last 15 minutes and the last hour, hours for today, days for a week or month, months for a quarter or year. Every complete step inside the period is searched, so a burst ten minutes ago still shows in the last hour, with its time ("40× its usual traffic at 17:31"); the usual level is the median of the 30 steps before it, or their average when most are empty, and hours and days are compared with the same hour or weekday earlier. Today and longer periods also list what the last hour found minute by minute, tagged "last hour", since a burst of a few minutes doesn't show in hourly or daily totals. The badge on the Insights tab and the Overview always show what's unusual right now (the last 30 minutes and today, like this table); the badge refreshes on every page, and those alerts are always in the list too, tagged "right now", whatever the period. Top routes can be folded away; the dashboard remembers it. Each refresh checks every route counted today, and the minute-by-minute traffic of up to 100 of them (the busiest, plus any with failures):
 
@@ -448,7 +448,7 @@ What's kept:
 
 - The method, URL, headers and body (up to 16 KB) as they were sent, including `Authorization`, cookies and API keys. Only connection headers (`Host`, `Content-Length`, `Connection`, `Accept-Encoding`, …) are left out; the host is part of the URL. Because of this, set a dashboard login, and keep your Redis private.
 - HTTP requests your app receives, and outgoing calls made with `fetch`, `http` or `https` (axios, got and node-fetch use these). An outgoing body is kept when it's text: a string, `URLSearchParams` or a buffer for `fetch`, and whatever is written to the request for `http` and `https`. Form data and streams aren't read. WebSocket traffic and gRPC have no curl.
-- Saved in your Redis as lists at `redis-tracker:samples:{prefix}:{TYPE}:{ACTION}:{name}` and `redis-tracker:failures:{prefix}:{TYPE}:{ACTION}:{name}`, kept 30 days after their last write. Resetting a route, a type or everything for all time deletes them too.
+- Saved in your Redis as lists at `system-tracker:samples:{prefix}:{TYPE}:{ACTION}:{name}` and `system-tracker:failures:{prefix}:{TYPE}:{ACTION}:{name}`, kept 30 days after their last write. Resetting a route, a type or everything for all time deletes them too.
 - Only while the dashboard is on. Without `dashboard.enable`, nothing is kept. So a route can have counts but no requests to show: counts from before the dashboard was turned on, or older than 30 days. The next request shows up within a minute.
 
 #### Settings tab
@@ -501,7 +501,7 @@ Charts sit on a grid four units wide (two on tablets, one on phones), and sizes 
 
 Charts on boards work like the built-in ones: hover for the crosshair and values, click the legend to hide a series, and click a bar, number, row or slice to open that route or type. Tables and donuts add up the whole range they show. Only types your app tracks can be charted. Text that doesn't fit ends in "…"; hover it to see all of it.
 
-Boards are saved in your Redis, as one JSON string at `redis-tracker:dashboards:{prefix}` (at most 50 boards and 256 KB). Restarts and redeploys keep them, and every instance of your app and everyone using the dashboard shares them. Each save is also logged to the browser console.
+Boards are saved in your Redis, as one JSON string at `system-tracker:dashboards:{prefix}` (at most 50 boards and 256 KB). Restarts and redeploys keep them, and every instance of your app and everyone using the dashboard shares them. Each save is also logged to the browser console.
 
 How it behaves:
 
@@ -518,7 +518,7 @@ How it behaves:
 `searchKeys(pattern)` finds keys using Redis patterns (`*` matches anything). With a cluster it searches every node. `statRedis` is the connected ioredis client.
 
 ```ts
-import { searchKeys, statRedis } from "redis-tracker";
+import { searchKeys, statRedis } from "system-tracker";
 
 async function todaysApiCounts() {
   const keys = await searchKeys("demo:API:*:day:2026-10-29");
@@ -567,7 +567,7 @@ That endpoint is itself counted (`demo:API:GET:api/statistics`). Add it to `igno
 
 ### Connect to Redis
 
-Pass the connection and the `prefix` straight to `init`. redis-tracker never reads environment variables, so there are no variable names to remember. If you keep these values in your own config or env files, read them however you like and pass them in.
+Pass the connection and the `prefix` straight to `init`. system-tracker never reads environment variables, so there are no variable names to remember. If you keep these values in your own config or env files, read them however you like and pass them in.
 
 A Redis URL:
 
@@ -635,7 +635,7 @@ Your own ioredis client (standalone):
 
 ```ts
 import Redis from "ioredis";
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 const client = new Redis({ host: "127.0.0.1", port: 6379 });
 
@@ -649,7 +649,7 @@ Your own ioredis client (cluster):
 
 ```ts
 import Redis from "ioredis";
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 const client = new Redis.Cluster([
   { host: "127.0.0.1", port: 7000 },
@@ -1047,7 +1047,7 @@ Always skipped:
 - Socket.IO long-polling requests (`/socket.io/...`)
 - Next.js's own WebSocket in development (`/_next/webpack-hmr`, used for hot reload)
 
-`RPC` and `GRAPHQL` are read from the JSON body: `req.body` when your app's body parser set it, otherwise the body as your app read it (Fastify, Koa, Next.js and plain Node keep theirs elsewhere). redis-tracker never reads the body itself; it sees it while your app does, up to 64 KB. A body your app never reads, or a larger one without `req.body`, counts as `API`.
+`RPC` and `GRAPHQL` are read from the JSON body: `req.body` when your app's body parser set it, otherwise the body as your app read it (Fastify, Koa, Next.js and plain Node keep theirs elsewhere). system-tracker never reads the body itself; it sees it while your app does, up to 64 KB. A body your app never reads, or a larger one without `req.body`, counts as `API`.
 
 ### How routes are named
 
@@ -1106,7 +1106,7 @@ Names never contain `:` (it is replaced with `/`) and are cut at 200 characters,
 
 ### How it behaves
 
-- **It never breaks your app.** Tracking errors are logged as `[redis-tracker] … failed` and never thrown into your request handling. Response bodies and status codes are untouched.
+- **It never breaks your app.** Tracking errors are logged as `[system-tracker] … failed` and never thrown into your request handling. Response bodies and status codes are untouched.
 - **Request bodies.** JSON bodies are watched as your app reads them, up to 64 KB, for GraphQL and JSON-RPC. With the dashboard on, other text bodies are too, for [recent requests](#recent-requests-and-failures). Nothing is read ahead of your app, and file uploads and binary bodies are skipped.
 - **Quiet when Redis fails.** If Redis keeps returning errors (out of memory, read-only after a failover), the same error is logged at most once every 10 seconds, with a `suppressed` count of the ones skipped.
 - **Redis cost.** Each key is one `EVALSHA` per enabled bucket (the script is sent once, then called by its hash). Repeated hits in one request are merged with `INCRBY`.
@@ -1143,7 +1143,7 @@ import type {
   TimeConfig,       // timeConfig
   TimeBucket,       // "sec" | "min" | "hour" | "day" | "month" | "year"
   TimeBucketConfig,
-} from "redis-tracker";
+} from "system-tracker";
 ```
 
 ### Demo

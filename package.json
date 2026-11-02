@@ -1,15 +1,15 @@
 {
-  "name": "redis-tracker",
-  "version": "3.0.10",
+  "name": "system-tracker",
+  "version": "3.0.11",
   "description": "Redis based RPC tracking counters",
   "author": "codezeros",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NPM-public-repo-Jaykumar/redis-tracker.git"
+    "url": "git+https://github.com/NPM-public-repo-Jaykumar/system-tracker.git"
   },
-  "homepage": "https://github.com/NPM-public-repo-Jaykumar/redis-tracker#readme",
+  "homepage": "https://github.com/NPM-public-repo-Jaykumar/system-tracker#readme",
   "bugs": {
-    "url": "https://github.com/NPM-public-repo-Jaykumar/redis-tracker/issues"
+    "url": "https://github.com/NPM-public-repo-Jaykumar/system-tracker/issues"
   },
   "keywords": [
     "redis",
@@ -37,7 +37,7 @@
     "postpublish-release": "node scripts/postpublish-release.js",
     "public-postpublish-release": "node scripts/public-postpublish-release.js",
     "release:bump": "node scripts/bump-version.js",
-    "release:check": "test \"$(git rev-parse --abbrev-ref HEAD)\" = main || { echo \"Release from the main branch\"; exit 1; }; npm owner ls \"$npm_package_name\" 2>/dev/null | grep -q \"^$(npm whoami 2>/dev/null) \" || { echo \"Log in to npm (npm login) as an owner of $npm_package_name first\"; exit 1; }"
+    "release:check": "test \"$(git rev-parse --abbrev-ref HEAD)\" = main || { echo \"Release from the main branch\"; exit 1; }; npm whoami >/dev/null 2>&1 || { echo \"Log in to npm (npm login) first\"; exit 1; }; ! npm view \"$npm_package_name\" name >/dev/null 2>&1 || npm owner ls \"$npm_package_name\" 2>/dev/null | grep -q \"^$(npm whoami 2>/dev/null) \" || { echo \"Log in to npm (npm login) as an owner of $npm_package_name first\"; exit 1; }"
   },
   "dependencies": {
     "ioredis": "^5.11.1"

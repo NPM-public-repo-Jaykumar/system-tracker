@@ -1,19 +1,19 @@
 ---
-name: redis-tracker
-description: Use this skill when integrating the `redis-tracker` npm package into a codebase, a single project or a workspace with several. It inspects the projects, asks the user step by step in plain words what to track (website pages, API, GraphQL, JSON-RPC, WebSockets, outside calls and more) with a recommended answer for each, then sets up `statis.init(...)`, the page-view script and the dashboard.
+name: system-tracker
+description: Use this skill when integrating the `system-tracker` npm package into a codebase, a single project or a workspace with several. It inspects the projects, asks the user step by step in plain words what to track (website pages, API, GraphQL, JSON-RPC, WebSockets, outside calls and more) with a recommended answer for each, then sets up `statis.init(...)`, the page-view script and the dashboard.
 ---
 
-# redis-tracker
+# system-tracker
 
-Use this skill with the package docs at `https://www.npmjs.com/package/redis-tracker`.
+Use this skill with the package docs at `https://www.npmjs.com/package/system-tracker`.
 
-You are helping integrate the npm package `redis-tracker` into a codebase.
+You are helping integrate the npm package `system-tracker` into a codebase.
 
-## What `redis-tracker` is for
+## What `system-tracker` is for
 
 - It stores Redis-based request counters per second, minute, hour, day, month and year.
 - One `statis.init(...)` call counts every request the app handles automatically: API calls, page views, GraphQL, JSON-RPC, WebSockets, Socket.IO events, SSE and gRPC. Static files and outgoing calls can be turned on.
-- There is no manual tracking API. Work that never arrives as a request (cron jobs, queue workers, scripts, business events) is not counted. If the user needs that, tell them redis-tracker only counts incoming requests and, with `OUT`, outgoing calls.
+- There is no manual tracking API. Work that never arrives as a request (cron jobs, queue workers, scripts, business events) is not counted. If the user needs that, tell them system-tracker only counts incoming requests and, with `OUT`, outgoing calls.
 
 ## Package exports
 
@@ -27,7 +27,7 @@ You are helping integrate the npm package `redis-tracker` into a codebase.
 - Minimal call:
 
 ```ts
-import { statis } from "redis-tracker";
+import { statis } from "system-tracker";
 
 statis.init({
   redis: "redis://127.0.0.1:6379",
@@ -64,7 +64,7 @@ statis.init({
 | `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
 | `dashboard` | off | `{ enable: true, url?: "/system-tracker", username?, password? }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup |
 
-- Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/redis-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/redis-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Next.js navigation data requests (`RSC: 1`, `/_next/data/`) aren't counted. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
+- Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/system-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/system-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Next.js navigation data requests (`RSC: 1`, `/_next/data/`) aren't counted. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
 
 - Key layout:
 - `{prefix}:{TYPE}:{ACTION}:{name}:{bucket}:{bucket_id}`
@@ -93,8 +93,8 @@ statis.init({
 - Where to call `statis.init(...)`:
 - Express, Fastify, Koa, plain Node: top of `server.ts` / `index.js`
 - NestJS: `main.ts`, before `NestFactory.create()`
-- Next.js: `instrumentation.ts`, inside `register()`, guarded by `if (process.env.NEXT_RUNTIME === "nodejs")` and loading the package with `await import("redis-tracker")`
-- Nuxt: `server/plugins/redis-tracker.ts` inside `defineNitroPlugin(() => { ... })`
+- Next.js: `instrumentation.ts`, inside `register()`, guarded by `if (process.env.NEXT_RUNTIME === "nodejs")` and loading the package with `await import("system-tracker")`
+- Nuxt: `server/plugins/system-tracker.ts` inside `defineNitroPlugin(() => { ... })`
 - SvelteKit (`adapter-node`): top of `src/hooks.server.ts`
 - Remix / React Router: top of `app/entry.server.tsx`
 - Astro (`@astrojs/node`): top of `src/middleware.ts`
@@ -150,7 +150,7 @@ If you have no code access, ask for the root `package.json`, the startup/entry f
 
 - Redis in the project: is there an `ioredis` client (reuse it), a `redis` (node-redis) or other client (its client can't be passed in; reuse its URL or host/port instead), a DI container or shared service module, a Redis URL in the config, or a `redis` service in `docker-compose.yml`. Standalone or cluster.
 - Redis on this machine (when you can run commands), so the setup can be tried right away: `redis-cli ping` answers `PONG`, `docker ps` lists a running Redis container, or port 6379 is open on `127.0.0.1`. Only read; don't start or change anything without asking.
-- The package manager, from the lockfile (`package-lock.json` → npm, `yarn.lock` → yarn, `pnpm-lock.yaml` → pnpm, `bun.lockb` → bun), to install `redis-tracker` with. It brings its own Redis client (`ioredis`); nothing else needs installing.
+- The package manager, from the lockfile (`package-lock.json` → npm, `yarn.lock` → yarn, `pnpm-lock.yaml` → pnpm, `bun.lockb` → bun), to install `system-tracker` with. It brings its own Redis client (`ioredis`); nothing else needs installing.
 - The environment variable the project uses to tell environments apart: `APP_ENV`, `ENVIRONMENT`, `STAGE`, `DEPLOY_ENV`, `VERCEL_ENV`, `RAILWAY_ENVIRONMENT`, or only `NODE_ENV`. Note its values (`development`, `staging`, `production`).
 - Env files (`.env`, `.env.local`, `.env.development`, `.env.example`), whether they're in `.gitignore`, how they're loaded (`dotenv`, `@nestjs/config`, framework built-in), and any config schema (`zod`, `joi`, `envalid`, a typed `config.ts`) that new variables must be added to.
 - Entry file and the best place for `statis.init(...)` (see "Where to call `statis.init(...)`" above).
@@ -235,10 +235,10 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - Recommend every Server and Full-stack project that handles real traffic. A Frontend-only project is set up together with the server it calls.
 - `Step-1` Redis connection
   - An `ioredis` client found: `Reuse the Redis connection in <file> (Recommended)`: no new connection, no new config. / `Use a separate connection`.
-  - Another client or only a URL found: `Use the project's Redis settings from <file/variable> (Recommended)`. redis-tracker opens its own connection with them.
+  - Another client or only a URL found: `Use the project's Redis settings from <file/variable> (Recommended)`. system-tracker opens its own connection with them.
   - No Redis in the project, but one runs on this machine: `Use the Redis running locally at redis://127.0.0.1:6379 (Recommended)`: adds `REDIS_URL` to the local env file, so tracking works right away; set the real URL for staging and production on the hosting. / `I'll give a Redis URL` / `Stop here`.
   - No Redis anywhere: `Add Redis to this project (Recommended)`: adds `REDIS_URL` to the env files; offer to start one locally with Docker (`docker run -d --name redis -p 6379:6379 redis:7`) and run it only if the user says yes. / `Stop here`.
-  - In every case: `redis-tracker` is installed with the project's package manager, and it brings its own Redis client.
+  - In every case: `system-tracker` is installed with the project's package manager, and it brings its own Redis client.
 - `Step-2` Redis mode (only for a new connection, or when the existing mode is unclear): `Standalone` / `Cluster`. Recommend the one the project's hosting or config points to; if nothing does, recommend `Standalone` and say why.
 - `Step-3` How to set up the rest. This keeps the setup fast.
   - First show the recommended settings in a short list, one line each, based on what you found: prefix, what to track, page-view script, skipped paths and crawlers, failures, groups, time periods, dashboard. For example:
@@ -250,7 +250,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
     Skip:          /health, /metrics · crawlers skipped
     Failures:      counted (5xx)
     Time periods:  standard (sec 1h · min/hour 1d · day 30d · month 180d · year 10y)
-    Dashboard:     on at /system-tracker, login from REDIS_TRACKER_DASHBOARD_USERNAME / _PASSWORD
+    Dashboard:     on at /system-tracker, login from SYSTEM_TRACKER_DASHBOARD_USERNAME / _PASSWORD
     ```
 
   - Then ask: `How do you want to set up the rest?`
@@ -295,10 +295,10 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - `Custom`: the user lists buckets and expiries, such as `hour,day,month` or `day: 90 days`.
   - Buckets not chosen get `enable: false`. Confirm the breakdown back.
 - `Step-11` Dashboard. Strongly recommend it, with a login:
-  - `Turn on the dashboard with a login from env variables (Recommended)`: adds `REDIS_TRACKER_DASHBOARD_USERNAME` and `REDIS_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set, so it's never open by accident.
+  - `Turn on the dashboard with a login from env variables (Recommended)`: adds `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set, so it's never open by accident.
   - `Turn it on without a login`: local development only; anyone who can reach the URL sees the traffic and can change boards. Say this plainly.
   - `No dashboard`.
-  - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[redis-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
+  - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
   - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login.
 - `Step-12` Final confirmation
   - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
@@ -307,7 +307,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
 
 ## Config values
 
-redis-tracker reads no environment variables itself. The project's own code reads them and passes the values to `statis.init(...)`:
+system-tracker reads no environment variables itself. The project's own code reads them and passes the values to `statis.init(...)`:
 
 ```ts
 const env = process.env;
@@ -316,16 +316,16 @@ statis.init({
   redis: env.REDIS_URL!, // or the project's existing variable, or { client: existingRedis, type: "standalone" }
   prefix: env.APP_ENV ?? "development", // the project's environment variable
   dashboard: {
-    enable: Boolean(env.REDIS_TRACKER_DASHBOARD_USERNAME && env.REDIS_TRACKER_DASHBOARD_PASSWORD),
+    enable: Boolean(env.SYSTEM_TRACKER_DASHBOARD_USERNAME && env.SYSTEM_TRACKER_DASHBOARD_PASSWORD),
     url: "/system-tracker", // the default; the app's log prints the full URL at startup
-    username: env.REDIS_TRACKER_DASHBOARD_USERNAME,
-    password: env.REDIS_TRACKER_DASHBOARD_PASSWORD,
+    username: env.SYSTEM_TRACKER_DASHBOARD_USERNAME,
+    password: env.SYSTEM_TRACKER_DASHBOARD_PASSWORD,
   },
 });
 ```
 
 - Reuse variables the project already has (its Redis URL, its environment variable) as they are. Only add new ones for what's missing.
-- New variables follow the project's naming convention; without one, use `REDIS_URL`, `REDIS_TRACKER_DASHBOARD_USERNAME` and `REDIS_TRACKER_DASHBOARD_PASSWORD`.
+- New variables follow the project's naming convention; without one, use `REDIS_URL`, `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD`.
 - Add them to:
   - the local env file (`.env`, `.env.local`), with working local values. For the password, generate a strong random one (for example `openssl rand -base64 24`) instead of a word like `admin`.
   - `.env.example` (or the project's template), with the names and an empty or placeholder value, never the real password.
@@ -338,16 +338,16 @@ statis.init({
 
 ## Implementation rules
 
-- Keep it simple. Change as few files as possible: usually the entry file (`statis.init`), the shared layout (the page-view script) and the env files. Don't create helper files, wrapper modules, config classes or abstractions for redis-tracker; put the `init` call inline where it belongs, and match the surrounding code's style.
-- Don't add packages besides `redis-tracker`, and don't touch routes, controllers or business code.
+- Keep it simple. Change as few files as possible: usually the entry file (`statis.init`), the shared layout (the page-view script) and the env files. Don't create helper files, wrapper modules, config classes or abstractions for system-tracker; put the `init` call inline where it belongs, and match the surrounding code's style.
+- Don't add packages besides `system-tracker`, and don't touch routes, controllers or business code.
 - Call `statis.init(...)` once per server process, at the place listed in "Where to call `statis.init(...)`", before the server listens.
 - Write only options that differ from the defaults, so `init` stays short and readable.
 - If the project already has an `ioredis` client, prefer `statis.init({ redis: { client, type }, prefix })`.
 - If Redis is set up fresh, pass its URL from an env variable (see [Config values](#config-values)). Never hardcode a Redis password or a dashboard password in source.
-- Install `redis-tracker` with the project's package manager.
+- Install `system-tracker` with the project's package manager.
 - Add the page-view script in the same change as `init` whenever the user chose it in Step-6.
 - Do not add a stats endpoint or stat-reading helper unless the user asks; the dashboard covers it.
-- Do not add tracking calls to routes, controllers, services, workers or jobs; redis-tracker has no manual tracking API.
+- Do not add tracking calls to routes, controllers, services, workers or jobs; system-tracker has no manual tracking API.
 - The prefix is the project's environment variable (Step-4). Never use per-request prefixes such as `qa-server:${userId}`.
 - In tests, pass `enabled: false` to `statis.init(...)`.
 - Set up `dashboard` as chosen in Step-11. With a login, read the username and password from env variables and guard `enable` with them, as in [Config values](#config-values).
@@ -357,7 +357,7 @@ statis.init({
 At the end, output a summary per project in this format:
 
 ```text
-✅ redis-tracker is implemented successfully.
+✅ system-tracker is implemented successfully.
 
 Project: <name> (<path>)
 - statis.init in: <path/to/entry-file>
