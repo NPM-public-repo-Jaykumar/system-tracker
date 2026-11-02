@@ -355,30 +355,36 @@ statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
   prefix: "demo",
   dashboard: {
-    enable: true,                   // default: false
-    url: "redis-tracker/dashboard", // default path
-    username: "admin",              // optional: no login when omitted
-    password: "change-me",          // optional: set both or neither
+    enable: true,            // default: false
+    url: "/system-tracker",  // default: "/system-tracker"
+    username: "admin",       // optional: no login when omitted
+    password: "change-me",   // optional: set both or neither
   },
 });
 ```
 
-Then open `/redis-tracker/dashboard` on your app's own host and port, for example `http://localhost:4000/redis-tracker/dashboard`.
+Then open `/system-tracker` on your app's own host and port, for example `http://localhost:4000/system-tracker`. Your app's log prints the full URL once, when its server starts (or, when redis-tracker starts after the server, as with Next.js, on the first request):
+
+```text
+[redis-tracker] dashboard: http://localhost:4000/system-tracker (sign in with dashboard.username and dashboard.password)
+```
 
 | Option | Default | What it does |
 | --- | --- | --- |
 | `dashboard.enable` | `false` | Serve the dashboard |
-| `dashboard.url` | `"redis-tracker/dashboard"` | The path it's served at (leading and trailing `/` are optional) |
+| `dashboard.url` | `"/system-tracker"` | The path it's served at (leading and trailing `/` are optional) |
 | `dashboard.username`, `dashboard.password` | — | Show a sign-in page. Set both or neither |
 
 Four tabs, and each part loads only when you open it:
 
-- **Overview**: your default board, when you set one (see [Boards](#boards)). Otherwise the built-in overview, with a range picker at the top: the last minute (per second), hour (per minute), 24 hours, 7 days, 30 days, 12 months or 5 years. Everything on the page covers that range: the requests in it, the current second, minute, hour, day, month or year next to the one before, the average and the busiest one; traffic stacked by type (hover a bar for each type and the total); one row per type with its trend, its current bucket (for example today), its total for the range (for example the last 7 days) and its share of that total; and the top routes, the same way. Outgoing calls (`OUT`) are listed too, but they aren't requests to your app, so they're not part of the total, the stacked chart or the shares, just like `{prefix}:global` leaves them out. The most important insights sit above them. The totals come from the `{prefix}:global` and `{prefix}:{TYPE}:global` keys, read by exact name; the routes of the last minute or hour are read by name for the routes seen in the last two hours, and longer ranges with one `SCAN`, cached for 15 seconds. **Customize** turns it into a board you can rearrange; saving it makes it your Overview.
-  - **Type** (click a row or a bar): the same range picker, and for that range its numbers, 5xx rate, share by route, methods, and every route with its requests, its current bucket and, with `failures: true`, its 5xx. Filter and sort them.
+- **Overview**: your default board, when you set one (see [Boards](#boards)). Otherwise the built-in overview, with a range picker at the top: the last minute (per second), hour (per minute), 24 hours, 7 days, 30 days, 12 months or 5 years. Everything on the page covers that range: the requests in it, the current second, minute, hour, day, month or year next to the one before, the average and the busiest one; traffic stacked by type (hover a bar for each type and the total); one row per type with its trend, its current bucket (for example today), its total for the range (for example the last 7 days) and its share of that total; and the top routes, the same way. Outgoing calls (`OUT`) are listed too, split into calls to **your backend** and to **third parties** (see [Your own domains](#your-own-domains)), but they aren't requests to your app, so they're not part of the total, the stacked chart or the shares, just like `{prefix}:global` leaves them out. The most important insights sit above them. The totals come from the `{prefix}:global` and `{prefix}:{TYPE}:global` keys, read by exact name; the routes of the last minute or hour are read by name for the routes seen in the last two hours, and longer ranges with one `SCAN`, cached for 15 seconds. **Customize** turns it into a board you can rearrange; saving it makes it your Overview.
+  - **Type** (click a row or a bar): the same range picker, and for that range its numbers, 5xx rate, share by route, methods (for `OUT`: your backend vs third-party), and every route with its requests, its current bucket and, with `failures: true`, its 5xx. Filter and sort them.
   - **Route** (click a route): one tile per bucket (seconds to years), which also picks the range, with how long each bucket is kept; the total, average, peak and lowest of the range, its failure rate, a chart with 5xx in red, and the raw bucket values. Below them, the route's [recent requests and failures](#recent-requests-and-failures) as curl commands.
 - **Insights**: stats and problems for the last 15 minutes, the last hour, today, this week, this month, this quarter or this year, with reports you can export. Problems are grouped as critical, warning, spikes, drops, high traffic, scale, failures and new routes. Click one to open that route or type at the right time range. See [Insights](#insights).
 - **Boards**: your own dashboards. See [Boards](#boards).
 - **Settings**: try other settings and get the `init()` code for them. See [Settings](#settings-tab).
+
+**Storage**: the top bar shows how much of Redis is in use and the tracker's share, for example `Redis 230 MB / 2 GB · tracker ≈28 MB`. It turns amber when Redis is 80% full. Hover it for the details, or click it for the **Storage in Redis** card on the Settings tab. That card has a bar for the tracker, everything else and the free space, and a table of the tracker's keys by group: each time bucket (with how long it's kept), recent requests, failures, boards and reports, with their key counts and sizes. Redis's own numbers come from `INFO memory` (`used_memory`, and `maxmemory`, or the server's RAM when no `maxmemory` is set) and `DBSIZE`, added up across cluster masters. The tracker's share comes from a `SCAN` of its keys in the background, at most once every 10 minutes and only while the dashboard is open. Sizes are estimated from `MEMORY USAGE` on a random sample of each group, so they're approximate. "Other" is everything else in Redis: other apps' keys and Redis's own overhead. **Recount** starts a new count (at most every 30 seconds). If your Redis provider blocks `INFO` or `MEMORY USAGE`, the card shows what it can, such as key counts only.
 
 Hover any chart, including the small trend lines, to see the time and the value under the cursor. Click a chart's legend to hide or show a series.
 
@@ -386,7 +392,9 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 **Stats by period**: pick the last 15 minutes, the last hour, today, this week (from Monday), this month, this quarter or this year, all in IST. The whole tab follows it: the stats, the three summary cards and the list of problems. You get the requests and how they compare with the period before, 5xx and their share, how many routes were called, the busiest minute, hour, day or month, a chart over the period, the split by type and the top 10 routes. Periods are read from the `min`, `day`, `month` and `year` buckets with one `SCAN` each, cached for 30 seconds, so they need those buckets turned on and kept long enough (a week needs 7 days of `day` buckets).
 
-**Export report**: pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `redis-tracker:reports:{prefix}` (a list) and `redis-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
+**Export** (on every screen: the Overview, a type, a route, a board, a template and Settings): downloads what the screen shows, at the range picked on it. That's the numbers at the top, each chart's data over time and each table (for a route: its buckets, newest first; for a board: every chart and table on it; for Settings: storage and what's tracked). Pick CSV, PDF (a print view) or JSON. A route's recent requests and failures are left out, since they can hold tokens. Each export is saved with the reports below, so you can download it again later.
+
+**Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `redis-tracker:reports:{prefix}` (a list) and `redis-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
 
 **Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only redis-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.username` and `dashboard.password`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[redis-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
 
@@ -404,10 +412,10 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 #### Recent requests and failures
 
-Each route's page lists its recent requests, so you can see what's being sent and replay it. Pick the format at the top:
+Each route's page lists its recent requests, so you can see what's being sent and replay it. That includes outgoing calls (`OUT`): the call your app made to your backend or a third party, with its body. Pick the format at the top:
 
-- **curl structure**: the route with its parameters, and every value replaced by its type. Use it to see the shape of a request.
-- **curl sample**: the request exactly as it was sent, ready to run.
+- **curl sample** (the default): the request exactly as it was sent, ready to run.
+- **curl structure**: the route with its parameters, and every value replaced by its type. Use it to see the shape of a request. The browser remembers your choice.
 
 curl structure:
 
@@ -433,15 +441,15 @@ curl -X POST 'https://api.example.com/api/users/42/profile?lang=en' \
 **Copy** puts the command on your clipboard. Paste it in a terminal, or in Postman with **Import → Raw text**. In a GraphQL body, the query and operation name stay as they are and only the variables become types; in a JSON-RPC body, so does the method.
 
 - **Recent requests**: the last 5 per route, at most one a minute, newest first. Names that many different requests share (`<unmatched>`, `<other>`, `<unknown>`, `<anonymous>`) keep the last 20, at most one every 2 seconds, so you can see what's behind them.
-- **Recent failures**: the last 20 requests answered with status 500 or above, at most one a second per route. Each also has the start of the error response (up to 2 KB) and, in Express apps, the stack of the error passed to `next(err)` or thrown in a route.
+- **Recent failures**: the last 20 requests answered with status 500 or above, at most one a second per route. Each also has the start of the error response (up to 2 KB) and, in Express apps, the stack of the error passed to `next(err)` or thrown in a route. For outgoing calls, a call that got no response at all (a reset connection or a timeout) is a failure too, with its error.
 - **No duplicates**: a request with the same method, URL (path and query) and body as one already in the list isn't added again. That entry moves to the top with the latest time, response and stack, and shows how many times it was captured (×3). So the list holds different requests, and repeats don't push them out.
 
 What's kept:
 
 - The method, URL, headers and body (up to 16 KB) as they were sent, including `Authorization`, cookies and API keys. Only connection headers (`Host`, `Content-Length`, `Connection`, `Accept-Encoding`, …) are left out; the host is part of the URL. Because of this, set a dashboard login, and keep your Redis private.
-- HTTP requests only. WebSocket traffic, gRPC and outgoing calls have no curl.
+- HTTP requests your app receives, and outgoing calls made with `fetch`, `http` or `https` (axios, got and node-fetch use these). An outgoing body is kept when it's text: a string, `URLSearchParams` or a buffer for `fetch`, and whatever is written to the request for `http` and `https`. Form data and streams aren't read. WebSocket traffic and gRPC have no curl.
 - Saved in your Redis as lists at `redis-tracker:samples:{prefix}:{TYPE}:{ACTION}:{name}` and `redis-tracker:failures:{prefix}:{TYPE}:{ACTION}:{name}`, kept 30 days after their last write. Resetting a route, a type or everything for all time deletes them too.
-- Only while the dashboard is on. Without `dashboard.enable`, nothing is kept.
+- Only while the dashboard is on. Without `dashboard.enable`, nothing is kept. So a route can have counts but no requests to show: counts from before the dashboard was turned on, or older than 30 days. The next request shows up within a minute.
 
 #### Settings tab
 
@@ -474,6 +482,8 @@ Add charts in four steps:
 2. **Show as**: number, line, area, bars, stacked bars, donut, table or insights. Donuts and tables split a type or pattern by route, all traffic by type, several series against each other, and one route into calls with and without 5xx, so you can switch any chart to any kind.
 3. **Measure**: requests, 5xx or failure rate (5xx needs `failures: true`).
 4. **Range and size**: the last minute (per second), hour (per minute), 24 hours, 30 days, 12 months or 5 years; then the size on the grid.
+
+The pencil next to a board's name, on the Boards tab and on the board itself, renames it right away. **Edit board** also lets you rename it, along with everything else.
 
 Click **Edit board** to change a board: drag a chart to move it (the others make room as you go and keep their sizes), drag any edge or corner to resize it, add, edit, duplicate or remove charts, and rename the board. When a chart gets wider than its row allows, the next charts move to the row below. While you edit, clicking a chart doesn't open anything, there's extra room below the last chart, and the page scrolls when you drag near its edge. Nothing changes until you click **Save**, which stores the board and opens it; **Cancel** drops the changes. Templates and **Customize** on the Overview open the same way, as an unsaved draft.
 
@@ -901,7 +911,8 @@ The limits are kept in memory and start again when the app restarts.
 | `limits.collapseAfter` | `50` | A URL part with more distinct values becomes `<slug>` |
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off completely |
-| `dashboard` | off | `{ enable, url, username, password }` (see [Dashboard](#dashboard)) |
+| `ownDomains` | `[]` | Domains of your own backend, for outgoing calls (see [Your own domains](#your-own-domains)) |
+| `dashboard` | off | `{ enable, url, username, password }` (see [Dashboard](#dashboard)); `url` defaults to `"/system-tracker"` |
 
 ## How it works
 
@@ -975,10 +986,10 @@ Failed requests (status 500 or higher) can also get their own key; see [Choose w
 | `API` | JSON / REST endpoints | HTTP method | `demo:API:POST:api/orders:min:…` |
 | `WEB` | Pages (HTML responses) | HTTP method | `demo:WEB:GET:blog/<slug>:min:…` |
 | `GRAPHQL` | GraphQL operations | `QUERY`, `MUTATION`, `SUBSCRIPTION` | `demo:GRAPHQL:QUERY:GetUser:min:…` |
-| `RPC` | JSON-RPC calls | `CALL`, `NOTIFY` | `demo:RPC:CALL:eth_getBalance:min:…` |
+| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION` | `demo:RPC:CALL:eth_getBalance:min:…` |
 | `WSS` | WebSocket connections, messages, Socket.IO events | `CONNECT`, `MESSAGE`, `EVENT` | `demo:WSS:CONNECT:ws/chat:min:…` |
 | `SSE` | Server-sent event streams | HTTP method | `demo:SSE:GET:events/prices:min:…` |
-| `GRPC` | gRPC calls | `CALL` | `demo:GRPC:CALL:user.UserService/GetUser:min:…` |
+| `GRPC` | gRPC, gRPC-Web and Connect calls | `CALL` | `demo:GRPC:CALL:user.UserService/GetUser:min:…` |
 | `OTHER` | Requests that match no route | HTTP method | `demo:OTHER:GET:<unmatched>:min:…` |
 | `STATIC` | JS, CSS, images, fonts — **off by default** | HTTP method | `demo:STATIC:GET:assets/<file>:min:…` |
 | `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `demo:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
@@ -988,13 +999,16 @@ How each type is detected, checked in this order (the first match wins):
 1. **Your own naming**: the `name` option, if it returns a name. See [Name requests yourself](#name-requests-yourself).
 2. **Custom types**: the path matches one of your `types`. See [Custom types](#custom-types).
 3. **Operations**: the path matches one of your `operations`. See [One URL, many operations](#one-url-many-operations).
-4. **`RPC`**: the parsed request body has `"jsonrpc": "2.0"` and a `method`. A call with an `id` is `CALL` and one without is `NOTIFY`. In a batch (`[{...}, {...}]`), each call is counted under its method and in `demo:RPC:global`, while `demo:global` counts the HTTP request once. Repeated methods in a batch are merged into one Redis write per key.
-5. **`GRAPHQL`**: the parsed request body has a `query` that is a GraphQL document (it starts with `{` or with `query`, `mutation` or `subscription` and contains `{`). The name is `operationName`, else the name in the document, else `<anonymous>`. A REST body like `{"query": "shoes"}` stays `API`. Also recognised: a `GET` with the document in `?query=` (and `?operationName=`), an `application/graphql` body, and a batch (`[{...}, {...}]`), where each operation is counted.
-6. **`OTHER`**: the response status is 404 and no route matched. All of these share the single name `<unmatched>`, so bot scans can't create new keys.
-7. **`SSE`**: the response `Content-Type` is `text/event-stream`.
-8. **`STATIC`**: the file extension is `js`, `mjs`, `css`, `map`, `png`, `jpg`, `jpeg`, `gif`, `svg`, `ico`, `webp`, `avif`, `woff`, `woff2`, `ttf`, `otf`, `eot`, `mp4` or `webm`, or the path starts with `/_next/static/`. The file name becomes `<file>`.
-9. **`WEB`**: the response `Content-Type` is `text/html` and either the status is below 400 or the request asked for HTML (a browser `Accept: text/html` or `Sec-Fetch-Dest: document` header). A response with no `Content-Type` also counts as `WEB` when the browser asked for a page, for example a `304 Not Modified` revalidation or a page load the user cancelled. An HTML error page returned to a script or API client counts as `API`.
-10. **`API`**: everything else.
+4. **Next.js Server Actions** (`RPC`, `ACTION`): a `POST` with a `Next-Action` header. The name is the page it was called from (`/` for the home page), since Next.js gives the action itself a new id on every build.
+5. **tRPC** (`RPC`): the path ends in `/trpc/{procedure}`, as in `/api/trpc/user.byId`. A `GET` is a `QUERY`, a `POST` a `MUTATION`, and an event stream a `SUBSCRIPTION`. In a batch (`/trpc/a.list,b.count?batch=1`), each procedure is counted.
+6. **gRPC-Web and Connect** (`GRPC`): a `POST` to `/package.Service/Method` with a `Content-Type` of `application/grpc-web…`, `application/grpc…` or `application/connect+…`, or a `Connect-Protocol-Version` header.
+7. **`RPC`**: the parsed request body has `"jsonrpc": "2.0"` and a `method`. A call with an `id` is `CALL` and one without is `NOTIFY`. In a batch (`[{...}, {...}]`), each call is counted under its method and in `demo:RPC:global`, while `demo:global` counts the HTTP request once. Repeated methods in a batch are merged into one Redis write per key.
+8. **`GRAPHQL`**: the parsed request body has a `query` that is a GraphQL document (it starts with `{` or with `query`, `mutation` or `subscription` and contains `{`). The name is `operationName`, else the name in the document, else `<anonymous>`. A REST body like `{"query": "shoes"}` stays `API`. Also recognised: a `GET` with the document in `?query=` (and `?operationName=`), an `application/graphql` body, and a batch (`[{...}, {...}]`), where each operation is counted.
+9. **`OTHER`**: the response status is 404 and no route matched. All of these share the single name `<unmatched>`, so bot scans can't create new keys.
+10. **`SSE`**: the response `Content-Type` is `text/event-stream`.
+11. **`STATIC`**: the file extension is `js`, `mjs`, `css`, `map`, `png`, `jpg`, `jpeg`, `gif`, `svg`, `ico`, `webp`, `avif`, `woff`, `woff2`, `ttf`, `otf`, `eot`, `mp4` or `webm`, or the path starts with `/_next/static/`. The file name becomes `<file>`.
+12. **`WEB`**: the response `Content-Type` is `text/html` and either the status is below 400 or the request asked for HTML (a browser `Accept: text/html` or `Sec-Fetch-Dest: document` header). A response with no `Content-Type` also counts as `WEB` when the browser asked for a page, for example a `304 Not Modified` revalidation or a page load the user cancelled. An HTML error page returned to a script or API client counts as `API`.
+13. **`API`**: everything else.
 
 Detected outside this order:
 
@@ -1004,7 +1018,26 @@ Detected outside this order:
   - `EVENT` counts each [Socket.IO](https://socket.io) event by name. `chat:send` becomes `chat/send`.
   - Socket.IO's own traffic (its polling requests and raw messages) is not counted separately.
 - **`GRPC`**: an HTTP/2 stream with `Content-Type: application/grpc`. The name is the gRPC method path.
-- **`OUT`**: requests made with `http`, `https` or `fetch`. The name is the host, plus `_port` for a non-default port, then the path, with the query string dropped. For example, `127.0.0.1_4000/rpc/v1/block`.
+- **`OUT`**: requests made with `http`, `https` or `fetch`. The name is the host, plus `_port` for a non-default port, then the path, with the query string dropped. For example, `127.0.0.1_4000/rpc/v1/block`. The dashboard marks each one as a call to your backend or to a third party (see [Your own domains](#your-own-domains)).
+
+#### Your own domains
+
+Outgoing calls (`track: { OUT: true }`) go either to your own backend or to third parties, and the dashboard shows them apart. A host counts as yours when:
+
+- it's under a domain your app is reached on: a request to `qa.example.com` (or `X-Forwarded-Host: qa.example.com` behind a proxy) makes `qa-api.example.com` and `api.example.com` yours. Country domains such as `example.co.nz` are understood;
+- it's local or private: `localhost`, a name without dots (a Docker or Kubernetes service such as `backend`), `*.local`, `*.internal`, `*.svc`, or a private IP such as `10.0.0.4` or `192.168.1.9`;
+- or it's under one of the `ownDomains` you list, for when your backend is on a different domain, or before your app has served a request:
+
+```ts
+statis.init({
+  redis: "redis://127.0.0.1:6379",
+  prefix: "demo",
+  track: { OUT: true },
+  ownDomains: ["example.com", "example-api.io"], // also matches their subdomains
+});
+```
+
+Either way they stay outgoing calls: they're counted in `demo:OUT:global`, not in `demo:global`. A request your app receives and the call it makes to your backend are one piece of work, and counting both would count it twice. The keys don't change; the dashboard sorts them by host when it shows them.
 
 Always skipped:
 

@@ -62,13 +62,20 @@ export declare function overview(range: string | null, now?: number): Promise<{
             id: string | null;
         };
     };
-    types: {
+    types: ({
         type: string;
         total: number;
         now: number;
         chart: number[];
-    }[];
-    top: {
+    } | {
+        own: number;
+        thirdParty: number;
+        type: string;
+        total: number;
+        now: number;
+        chart: number[];
+    })[];
+    top: ({
         share: number;
         type: string;
         action: string;
@@ -76,7 +83,9 @@ export declare function overview(range: string | null, now?: number): Promise<{
         total: number;
         now: number;
         errors: number | null;
-    }[];
+    } & {
+        own?: boolean;
+    })[];
 }>;
 export declare function typeView(typeParam: string | null, range: string | null, now?: number): Promise<{
     type: string;
@@ -100,7 +109,9 @@ export declare function typeView(typeParam: string | null, range: string | null,
             id: string | null;
         };
     };
-    routes: RangeRoute[];
+    routes: (RangeRoute & {
+        own?: boolean;
+    })[];
 }>;
 export declare function routeView(q: URLSearchParams, now?: number): Promise<{
     samples: Sample[];

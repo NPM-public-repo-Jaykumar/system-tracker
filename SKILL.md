@@ -61,7 +61,8 @@ statis.init({
 | `limits.collapseAfter` | `50` | A URL part with more distinct values becomes `<slug>` |
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off (e.g. in tests) |
-| `dashboard` | off | `{ enable: true, url?: "redis-tracker/dashboard", username?, password? }` serves a built-in dashboard from the app's own server |
+| `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
+| `dashboard` | off | `{ enable: true, url?: "/system-tracker", username?, password? }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup |
 
 - Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/redis-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/redis-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Next.js navigation data requests (`RSC: 1`, `/_next/data/`) aren't counted. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
 
@@ -88,7 +89,7 @@ statis.init({
 | `OUT` (off) | HTTP method | `qa-server:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
 
 - GraphQL and JSON-RPC are recognised from the JSON body on every framework: `req.body` when a body parser set it, otherwise the body as the app read it (up to 64 KB). GraphQL also via `GET ?query=`, `application/graphql` bodies and batches. See [Make every kind of traffic count](#make-every-kind-of-traffic-count) for what still isn't recognised.
-- With the dashboard on, each route's page shows its recent requests as curl (structure and exact sample) and its recent failures with the error response and, in Express, the stack. No code is needed for this.
+- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this.
 - Where to call `statis.init(...)`:
 - Express, Fastify, Koa, plain Node: top of `server.ts` / `index.js`
 - NestJS: `main.ts`, before `NestFactory.create()`
@@ -177,11 +178,14 @@ Don't assume a kind of traffic is counted because the library is installed. For 
 | --- | --- | --- |
 | GraphQL | the operation arrives as JSON `{ "query": "…" }` (POST, read by the app), `GET ?query=`, or `application/graphql` | Persisted queries that send only a hash (`extensions.persistedQuery`, no `query`): `operations: [{ path: "/graphql", type: "GRAPHQL", read: (b) => b.operationName }]`. Unnamed operations count as `<anonymous>`: name them in the client, or read a name the same way. |
 | GraphQL subscriptions | over WebSockets (`graphql-ws`, `subscriptions-transport-ws`) they're counted as `WSS` connections and messages on the socket's path, not per operation | Say so; nothing to change. |
+| Next.js Server Actions | a `POST` with a `Next-Action` header; counted as `RPC` `ACTION`, named by the page | Nothing to change. |
+| tRPC | the path ends in `/trpc/{procedure}` (e.g. `/api/trpc/user.byId`); `RPC` `QUERY` / `MUTATION` / `SUBSCRIPTION` | Nothing to change. |
+| gRPC-Web, Connect | `POST /package.Service/Method` with a gRPC-Web, gRPC or Connect content type; counted as `GRPC` | Nothing to change. |
 | JSON-RPC | the body has `"jsonrpc": "2.0"` and a `method` | RPC-style bodies without `jsonrpc` (`{ "action": "swap" }`, `{ "op": … }`): `operations: [{ path: "/action", type: "RPC", read: (b) => b.action }]`. |
 | WebSockets | the socket server runs on a Node `http`/`https` server in the same process (`ws`, `socket.io`, `new WebSocketServer({ port })` all do) | Messages and Socket.IO events are counted only when `ws` / `socket.io` resolve from the folder the app starts in (its `node_modules`). In a monorepo started from the root, check this. `uWebSockets.js`, `Bun.serve` and `Deno.serve` aren't Node servers and can't be counted; say so. |
 | Server-sent events | the response sets `Content-Type: text/event-stream` | Set that header on the stream (SSE needs it anyway). |
 | gRPC | `@grpc/grpc-js` serves in the same process | A proxy or separate binary isn't counted; say so. |
-| Outgoing calls | made with `http`, `https`, `fetch`, `undici` or a client built on them (axios, got, node-fetch), and `track: { OUT: true }` | Turn `OUT` on if the user chose it. |
+| Outgoing calls | made with `http`, `https`, `fetch`, `undici` or a client built on them (axios, got, node-fetch), and `track: { OUT: true }` | Turn `OUT` on if the user chose it. When the app calls its own backend on a domain other than the one it's served on (or the dashboard is opened before any request, e.g. in local development against a remote API), add that domain to `ownDomains`. |
 | Pages changed in the browser | the page-view script is in the shared layout | Add it (Step-6). |
 
 Then make sure nothing important ends up under a catch-all name. Go through the routes you listed and predict each key; fix every one that would land in:
@@ -246,7 +250,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
     Skip:          /health, /metrics · crawlers skipped
     Failures:      counted (5xx)
     Time periods:  standard (sec 1h · min/hour 1d · day 30d · month 180d · year 10y)
-    Dashboard:     on at /redis-tracker/dashboard, login from REDIS_TRACKER_DASHBOARD_USERNAME / _PASSWORD
+    Dashboard:     on at /system-tracker, login from REDIS_TRACKER_DASHBOARD_USERNAME / _PASSWORD
     ```
 
   - Then ask: `How do you want to set up the rest?`
@@ -266,11 +270,11 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   | People opening pages of your website | `WEB` | on | the project serves pages |
   | API calls to your backend | `API` | on | it has API routes |
   | GraphQL queries and mutations | `GRAPHQL` | on | GraphQL is found |
-  | JSON-RPC calls | `RPC` | on | JSON-RPC is found |
+  | JSON-RPC calls, Next.js Server Actions, tRPC procedures | `RPC` | on | JSON-RPC, `"use server"` actions or tRPC are found |
   | Real-time connections and messages (WebSockets, Socket.IO) | `WSS` | on | `ws` or `socket.io` is found |
   | Live streams to the browser (server-sent events) | `SSE` | on | `text/event-stream` is found |
   | gRPC calls | `GRPC` | on | gRPC is found |
-  | Calls your app makes to outside services (RPC providers, payment, email APIs) | `OUT` | off | outgoing calls to other services are found; name them |
+  | Calls your app makes to its own backend or outside services (RPC providers, payment, email APIs) | `OUT` | off | outgoing calls are found; name them, and list the app's own backend domains in `ownDomains` |
   | Requests to unknown URLs (404s, bot scans) | `OTHER` | on | always |
   | Files like JS, CSS and images | `STATIC` | off | rarely; only if the app serves files and the user wants them counted |
 
@@ -294,8 +298,8 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - `Turn on the dashboard with a login from env variables (Recommended)`: adds `REDIS_TRACKER_DASHBOARD_USERNAME` and `REDIS_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set, so it's never open by accident.
   - `Turn it on without a login`: local development only; anyone who can reach the URL sees the traffic and can change boards. Say this plainly.
   - `No dashboard`.
-  - Tell the user the URL it'll be at (for example `http://localhost:3000/redis-tracker/dashboard`) and that reset data needs the login.
-  - Say what they get: charts per route, insights, boards, and on each route's page its recent requests as curl (structure and exact sample, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login.
+  - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[redis-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
+  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login.
 - `Step-12` Final confirmation
   - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
   - Ask: `Should I make these changes now?` `Implement (Recommended)` / `Change something` / `Stop`.
@@ -313,6 +317,7 @@ statis.init({
   prefix: env.APP_ENV ?? "development", // the project's environment variable
   dashboard: {
     enable: Boolean(env.REDIS_TRACKER_DASHBOARD_USERNAME && env.REDIS_TRACKER_DASHBOARD_PASSWORD),
+    url: "/system-tracker", // the default; the app's log prints the full URL at startup
     username: env.REDIS_TRACKER_DASHBOARD_USERNAME,
     password: env.REDIS_TRACKER_DASHBOARD_PASSWORD,
   },

@@ -59,6 +59,7 @@ export type InitOptions = {
         maxNamesPerType?: number;
         collapseAfter?: number;
     };
+    ownDomains?: string[];
     name?: (req: IncomingMessage) => Hit | undefined;
     enabled?: boolean;
     dashboard?: DashboardOptions;
@@ -100,6 +101,7 @@ export type AutoConfig = {
         maxNamesPerType: number;
         collapseAfter: number;
     };
+    ownDomains: string[];
     name?: (req: IncomingMessage) => Hit | undefined;
     dashboard: DashboardConfig | null;
 };
