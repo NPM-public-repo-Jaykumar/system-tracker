@@ -83,10 +83,10 @@ statis.init({
 | `WSS` | `CONNECT` / `MESSAGE` / `EVENT` | `qa-server:WSS:CONNECT:ws/chat:min:…` |
 | `SSE` | HTTP method | `qa-server:SSE:GET:events/prices:min:…` |
 | `GRPC` | `CALL` | `qa-server:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `RPC` (JSON-RPC, tRPC, Server Actions, a host or route with `rpc` in it; calls out to rpc hosts use action `OUT`) | `CALL` / `NOTIFY` / `ACTION` / `QUERY` / `MUTATION` / `SUBSCRIPTION`, HTTP method, or `OUT` | `qa-server:RPC:CALL:eth_getBalance:min:…`, `qa-server:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `RPC` (JSON-RPC, tRPC, Server Actions, a host or route with `rpc` in it; calls out to rpc hosts use action `OUT`) | `CALL` / `NOTIFY` / `ACTION` / `QUERY` / `MUTATION` / `SUBSCRIPTION`, HTTP method, or `OUT` | `qa-server:RPC:CALL:eth_getBalance:min:…`, `qa-server:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:…` |
 | `OTHER` (404s, scanner paths) | HTTP method | `qa-server:OTHER:GET:<unmatched>:min:…` |
 | `STATIC` (off) | HTTP method | `qa-server:STATIC:GET:assets/<file>:min:…` |
-| `OUT` (off) | HTTP method | `qa-server:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `OUT` (off) | HTTP method | `qa-server:OUT:GET:rpc-testnet.example.com/rpc/v1/block:min:…` |
 
 - `WEB` is only what the browser shows as a page (Fetch Metadata `navigate` / `document`, or `Accept: text/html` from clients without it). Requests made by scripts (fetch, XHR, htmx, Turbo Frames) are `API` even when they return HTML. Scanner paths (`.php`, `.env`, `wp-…`) are `OTHER`; `robots.txt`, sitemaps, manifests and `/.well-known/` are `STATIC`.
 - A host or route with `rpc` as a word part (`rpc.example.com`, `rpc-testnet.…`, `/rpc/…`, `/json-rpc`, `/jsonrpc`; not `grpc`/`trpc`) is `RPC`, even under `/api/`. Outgoing calls to such hosts are `RPC` with action `OUT` (needs `track.OUT`; not in the overall total).

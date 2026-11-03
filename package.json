@@ -1,8 +1,8 @@
 {
   "name": "system-tracker",
-  "version": "3.0.19",
+  "version": "3.0.20",
   "description": "See how your Node.js app is used: page views, API calls, live connections and more, counted by the second up to the year, with a built-in dashboard and no tracking code in your routes.",
-  "author": "codezeros",
+  "author": "Jaykumar Gohil",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/NPM-public-repo-Jaykumar/system-tracker.git"

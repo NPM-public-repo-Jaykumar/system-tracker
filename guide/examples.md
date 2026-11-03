@@ -101,7 +101,7 @@ statis.init({
 http
   .createServer(async (req, res) => {
     if (req.url === "/api/call-block") {
-      const block = await fetch("https://rpc-testnet.supra.com/rpc/v1/block").then((r) => r.json());
+      const block = await fetch("https://rpc-testnet.example.com/rpc/v1/block").then((r) => r.json());
       res.writeHead(200, { "content-type": "application/json" });
       return res.end(JSON.stringify(block));
     }
@@ -114,5 +114,5 @@ Each visit to `/api/call-block` counts twice: once as the request to your server
 
 ```text
 local-demo:API:GET:api/call-block:min:...
-local-demo:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block:min:...
+local-demo:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:...
 ```

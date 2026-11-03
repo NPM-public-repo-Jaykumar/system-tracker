@@ -83,10 +83,10 @@ Failed requests (status 500 or higher) can also get their own key; see [Choose w
 | `WSS` | WebSocket connections, messages, Socket.IO events | `CONNECT`, `MESSAGE`, `EVENT` | `demo:WSS:CONNECT:ws/chat:min:…` |
 | `SSE` | Server-sent event streams | HTTP method | `demo:SSE:GET:events/prices:min:…` |
 | `GRPC` | gRPC, gRPC-Web and Connect calls | `CALL` | `demo:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures, anything on a host or route with `rpc` in it, and calls out to such hosts | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION`, the HTTP method, or `OUT` for calls your app makes | `demo:RPC:CALL:eth_getBalance:min:…`, `demo:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures, anything on a host or route with `rpc` in it, and calls out to such hosts | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION`, the HTTP method, or `OUT` for calls your app makes | `demo:RPC:CALL:eth_getBalance:min:…`, `demo:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:…` |
 | `OTHER` | Requests that match no route, and scanner paths (`.php`, `.env`, `wp-…`) | HTTP method | `demo:OTHER:GET:<unmatched>:min:…` |
 | `STATIC` | JS, CSS, images, fonts — **off by default** | HTTP method | `demo:STATIC:GET:assets/<file>:min:…` |
-| `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `demo:OUT:GET:rpc-testnet.supra.com/rpc/v1/block:min:…` |
+| `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `demo:OUT:GET:rpc-testnet.example.com/rpc/v1/block:min:…` |
 
 How each type is detected, checked in this order (the first match wins):
 
@@ -119,7 +119,7 @@ Detected outside this order:
   - Socket.IO's own traffic (its polling requests and raw messages) is not counted separately.
 - **`GRPC`**: an HTTP/2 stream with `Content-Type: application/grpc`. The name is the gRPC method path.
 - **`OUT`**: requests made with `http`, `https` or `fetch`. The name is the host, plus `_port` for a non-default port, then the path, with the query string dropped. For example, `127.0.0.1_4000/rpc/v1/block`. The dashboard marks each one as a call to your backend or to a third party (see [Your own domains](#your-own-domains)).
-  A call to a host or path with `rpc` in it (the same word-part rule as above, e.g. `rpc-testnet.supra.com`) is counted as `RPC` with the action `OUT` instead, e.g. `demo:RPC:OUT:rpc-testnet.supra.com/rpc/v1/block`. Like `OUT`, it's in `demo:RPC:global` but not in `demo:global`, and it's only watched while `track.OUT` is on.
+  A call to a host or path with `rpc` in it (the same word-part rule as above, e.g. `rpc-testnet.example.com`) is counted as `RPC` with the action `OUT` instead, e.g. `demo:RPC:OUT:rpc-testnet.example.com/rpc/v1/block`. Like `OUT`, it's in `demo:RPC:global` but not in `demo:global`, and it's only watched while `track.OUT` is on.
 
 ### Your own domains
 
