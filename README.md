@@ -4,6 +4,10 @@ See how your Node.js app is used. Every page people open, every API call, and ev
 
 Add one line when your app starts. You don't change your routes or write any tracking code. All it needs is a Redis database to keep the numbers in.
 
+## Watch the 8-minute walkthrough on YouTube
+
+<a href="https://youtu.be/8VVgm_3hoZo"><img src="https://raw.githubusercontent.com/NPM-public-repo-Jaykumar/system-tracker/main/guide/images/walkthrough-video.jpg" width="480" alt="Watch the 8-minute walkthrough on YouTube: setup, the dashboard, boards, settings and AI setup"></a>
+
 ## Quick start
 
 ```bash
@@ -21,14 +25,14 @@ statis.init({
   dashboard: {
     enable: true,
     users: [{ username: "admin", password: "change-me" }], // add more people to the list
-    saveSampleCurl: true, // the default; false stops keeping recent requests
+    saveSampleCurl: true, // the default; false keeps no recent requests or failures
   },
 });
 ```
 
 Start your app and open `/system-tracker` on it, for example `http://localhost:3000/system-tracker`, and sign in with any user from the list. A wrong username or password gets the same "Wrong username or password", and after 3 wrong tries a username is blocked for 15 minutes, even with the right password.
 
-The dashboard keeps each route's recent requests as curl commands, with their headers and bodies (tokens included). If you'd rather not keep them, set `saveSampleCurl: false`. See [Dashboard](guide/dashboard.md#sign-in) for more.
+The dashboard keeps each route's recent requests as curl commands, with their headers and bodies (tokens included), and its recent failures with the error response and stack. If you'd rather not keep any of that, set `saveSampleCurl: false`: no requests, failures, error responses or stacks are kept, and counts and charts work as before. See [Dashboard](guide/dashboard.md#sign-in) for more.
 
 Using Next.js, Nuxt, SvelteKit or another framework? See [where to add it](guide/frameworks.md).
 

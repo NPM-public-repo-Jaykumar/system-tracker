@@ -245,7 +245,7 @@ The limits are kept in memory and start again when the app restarts.
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off completely |
 | `ownDomains` | `[]` | Domains of your own backend, for outgoing calls (see [Your own domains](how-it-works.md#your-own-domains)) |
-| `dashboard` | off | `{ enable, url, users, saveSampleCurl }` (see [Dashboard](dashboard.md#dashboard)); `url` defaults to `"/system-tracker"`, `users` is a list of `{ username, password }` (3 wrong tries block a username for 15 minutes), `saveSampleCurl` defaults to `true` (`false` keeps no recent requests) |
+| `dashboard` | off | `{ enable, url, users, saveSampleCurl }` (see [Dashboard](dashboard.md#dashboard)); `url` defaults to `"/system-tracker"`, `users` is a list of `{ username, password }` (3 wrong tries block a username for 15 minutes), `saveSampleCurl` defaults to `true` (`false` keeps no recent requests or failures, so no headers, bodies, error responses or stacks) |
 
 
 ## Connect to Redis

@@ -92,7 +92,7 @@ statis.init({
 - A host or route with `rpc` as a word part (`rpc.example.com`, `rpc-testnet.…`, `/rpc/…`, `/json-rpc`, `/jsonrpc`; not `grpc`/`trpc`) is `RPC`, even under `/api/`. Outgoing calls to such hosts are `RPC` with action `OUT` (needs `track.OUT`; not in the overall total).
 - Anything else under `/api/` is `API`, whatever it returns; only GraphQL there keeps its own type. The dashboard (at `/system-tracker` or a custom `dashboard.url`) and `/system-tracker/view` are never counted.
 - GraphQL and JSON-RPC are recognised from the JSON body on every framework: `req.body` when a body parser set it, otherwise the body as the app read it (up to 64 KB). GraphQL also via `GET ?query=`, `application/graphql` bodies and batches. See [Make every kind of traffic count](#make-every-kind-of-traffic-count) for what still isn't recognised.
-- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this. These requests are kept as sent, tokens included; `dashboard.saveSampleCurl: false` (default `true`) keeps none of them.
+- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this. These requests are kept as sent, tokens included; `dashboard.saveSampleCurl: false` (default `true`) keeps none of them: no recent requests, no failures, no error responses and no stacks, incoming or outgoing. 5xx counts (`failures: true`) are unaffected.
 - Where to call `statis.init(...)`:
 - Express, Fastify, Koa, plain Node: top of `server.ts` / `index.js`
 - NestJS: `main.ts`, before `NestFactory.create()`
@@ -303,7 +303,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - `No dashboard`.
   - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
   - Tell them more people can sign in by adding them to `users`, and that 3 wrong tries block a username for 15 minutes (deleting `system-tracker:login-blocked:{prefix}:{username}` in Redis unblocks it early).
-  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login. If the user is concerned about that (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay, and no requests or failures are kept. Leave it out otherwise; `true` is the default.
+  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login. If the user is concerned about that (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay (5xx counts too), and no requests, failures, error responses or stacks are kept. Leave it out otherwise; `true` is the default.
 - `Step-12` Final confirmation
   - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
   - Ask: `Should I make these changes now?` `Implement (Recommended)` / `Change something` / `Stop`.
@@ -324,7 +324,7 @@ statis.init({
     enable: Boolean(env.SYSTEM_TRACKER_DASHBOARD_USERNAME && env.SYSTEM_TRACKER_DASHBOARD_PASSWORD),
     url: "/system-tracker", // the default; the app's log prints the full URL at startup
     users: [{ username: env.SYSTEM_TRACKER_DASHBOARD_USERNAME!, password: env.SYSTEM_TRACKER_DASHBOARD_PASSWORD! }],
-    // saveSampleCurl: false, // only if the user doesn't want recent requests (tokens included) kept
+    // saveSampleCurl: false, // only if the user doesn't want recent requests or failures (tokens, error responses, stacks) kept
   },
 });
 ```
@@ -378,4 +378,6 @@ Project: <name> (<path>)
 - env variables added: <names and files, or none>; set them on your hosting too
 
 Not counted (never arrives as a request): <list of workers/jobs or none>
+
+Walkthrough video (the dashboard, boards and settings): https://youtu.be/8VVgm_3hoZo
 ```

@@ -2,7 +2,7 @@
 
 [← Back to system-tracker](../README.md)
 
-A built-in dashboard shows these counts in your browser. It's off by default. Turn it on in the same `init` call:
+A built-in dashboard shows these counts in your browser. See it in the [walkthrough video](https://youtu.be/8VVgm_3hoZo?t=163), from 2:43. It's off by default. Turn it on in the same `init` call:
 
 ```ts
 statis.init({
@@ -15,7 +15,7 @@ statis.init({
       { username: "admin", password: "change-me" },
       { username: "ops", password: "another-strong-one" },
     ],
-    saveSampleCurl: true,    // default: true; false keeps no recent requests
+    saveSampleCurl: true,    // default: true; false keeps no recent requests or failures
   },
 });
 ```
@@ -32,7 +32,7 @@ Then open `/system-tracker` on your app's own host and port, for example `http:/
 | `dashboard.url` | `"/system-tracker"` | The path it's served at (leading and trailing `/` are optional) |
 | `dashboard.users` | — | Who can sign in: a list of `{ username, password }`. Show a sign-in page when set. See [Sign-in](#sign-in) |
 | `dashboard.username`, `dashboard.password` | — | A shorthand for a single user. Set both or neither; they're added to `users` |
-| `dashboard.saveSampleCurl` | `true` | Keep each route's recent requests and failures as curl. `false` keeps none. See [Recent requests and failures](#recent-requests-and-failures) |
+| `dashboard.saveSampleCurl` | `true` | Keep each route's recent requests and failures (with the error response and stack). `false` keeps none of them. See [Recent requests and failures](#recent-requests-and-failures) |
 
 ## Sign-in
 
@@ -110,7 +110,7 @@ curl -X POST 'https://api.example.com/api/users/42/profile?lang=en' \
 **Copy** puts the command on your clipboard. Paste it in a terminal, or in Postman with **Import → Raw text**. In a GraphQL body, the query and operation name stay as they are and only the variables become types; in a JSON-RPC body, so does the method.
 
 - **Recent requests**: the last 5 per route, at most one a minute, newest first. Names that many different requests share (`<unmatched>`, `<other>`, `<unknown>`, `<anonymous>`) keep the last 20, at most one every 2 seconds, so you can see what's behind them.
-- **Recent failures**: the last 20 requests answered with status 500 or above, at most one a second per route. Each also has the start of the error response (up to 2 KB) and, in Express apps, the stack of the error passed to `next(err)` or thrown in a route. For outgoing calls, a call that got no response at all (a reset connection or a timeout) is a failure too, with its error.
+- **Recent failures**: the last 20 requests answered with status 500 or above, at most one a second per route. Each also has the start of the error response (up to 2 KB) and, in Express apps, the stack of the error passed to `next(err)` or thrown in a route. For outgoing calls, a call that got no response at all (a reset connection or a timeout) is a failure too, with its error. With `saveSampleCurl: false`, none of this is kept.
 - **No duplicates**: a request with the same method, URL (path and query) and body as one already in the list isn't added again. That entry moves to the top with the latest time, response and stack, and shows how many times it was captured (×3). So the list holds different requests, and repeats don't push them out.
 
 What's kept:
@@ -126,7 +126,7 @@ If you'd rather not keep requests, because they hold tokens, cookies and persona
 dashboard: { enable: true, users: [/* … */], saveSampleCurl: false },
 ```
 
-Then no requests or failures are kept, request bodies aren't read for them, and each route's page says they're off. Counts and charts work as before. Requests kept earlier aren't shown, and they're deleted 30 days after their last write (or right away with **Reset data**).
+Then nothing about single requests is kept: no recent requests, no failures, no error responses and no stacks, for incoming requests and outgoing calls alike. Request bodies and error responses aren't read for them, the Express error hook isn't installed, and each route's page says they're off. Failed requests are still counted as numbers, with `failures: true`. Counts and charts work as before. Requests kept earlier aren't shown, and they're deleted 30 days after their last write (or right away with **Reset data**).
 
 ## Settings tab
 
