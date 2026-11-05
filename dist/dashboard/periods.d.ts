@@ -33,4 +33,4 @@ export type CounterKey = {
     name?: string;
     errors: boolean;
 };
-export declare function parseKey(prefix: string, key: string): CounterKey | null;
+export declare function parseKey(prefix: string, key: string, raw?: boolean): CounterKey | null;

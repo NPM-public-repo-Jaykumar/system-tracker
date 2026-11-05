@@ -7,23 +7,25 @@
 Each request adds 1 to a key like this:
 
 ```text
-{prefix}:{TYPE}:{ACTION}:{name}:{bucket}:{bucket_id}
+{prefix}:{TYPE}:{ACTION}:{hashed name}:{bucket}:{bucket_id}
 ```
 
-Its value is the number of requests in that period. With `prefix: "demo"`:
+Its value is the number of requests in that period. The route's name isn't written in the key: it's replaced by a keyed hash made with your `secretKey` (`h.` and 22 characters), so someone reading your Redis can't tell which route a key counts. Redis still adds 1 to the key in one step, as fast as with a plain name. The dashboard shows the real names: each one is kept once, encrypted, at `system-tracker:names:{prefix}`. To build a key in your own code, use `hashName` (see [Reading counts in your code](#reading-counts-in-your-code)). With `prefix: "demo"`:
 
 ```text
-GET    /api/users/42   →  demo:API:GET:api/users/<id>:min:2026-10-29-23-35
-PATCH  /api/users/42   →  demo:API:PATCH:api/users/<id>:min:2026-10-29-23-35
-GET    /products/7     →  demo:WEB:GET:products/<id>:min:2026-10-29-23-35
+GET    /api/users/42   →  demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-35     (api/users/<id>)
+PATCH  /api/users/42   →  demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-35   (api/users/<id>)
+GET    /products/7     →  demo:WEB:GET:h.p9Lk3Jh7Gf5Ds1Aq8Ws2Ed:min:2026-10-29-23-35     (products/<id>)
 ```
+
+The same name always gets the same hash with the same `secretKey`, so every method and bucket of a route shares it. The hashes above are examples; yours depend on your key.
 
 | Part | Meaning | Example |
 | --- | --- | --- |
 | `prefix` | Your app or environment name | `demo` |
 | `TYPE` | Kind of request (see [What gets counted](#what-gets-counted)) | `API` |
 | `ACTION` | HTTP method, or the operation kind | `GET`, `QUERY`, `CALL` |
-| `name` | Route, without the leading `/` (see [How routes are named](#how-routes-are-named)) | `api/users/<id>` |
+| `hashed name` | The route's name (without the leading `/`, see [How routes are named](#how-routes-are-named)), hashed with your `secretKey` | `h.k7Hq2xLm9pQ4sT8vW1yZ0a` for `api/users/<id>` |
 | `bucket` | Time period | `sec`, `min`, `hour`, `day`, `month`, `year` |
 | `bucket_id` | The period itself, in IST (UTC+5:30) | `2026-10-29-23-35` |
 
@@ -38,26 +40,26 @@ Bucket id formats:
 | `month` | `YYYY-MM` | `2026-10` |
 | `year` | `YYYY` | `2026` |
 
-One route across all buckets:
+One route (`api/users/<id>`) across all buckets:
 
 ```text
-demo:API:PATCH:api/users/<id>:sec:2026-10-29-23-35-12     expires in 1 hour
-demo:API:PATCH:api/users/<id>:min:2026-10-29-23-35        expires in 1 day
-demo:API:PATCH:api/users/<id>:hour:2026-10-29-23          expires in 1 day
-demo:API:PATCH:api/users/<id>:day:2026-10-29              expires in 30 days
-demo:API:PATCH:api/users/<id>:month:2026-10               expires in 180 days
-demo:API:PATCH:api/users/<id>:year:2026                   expires in 10 years
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:sec:2026-10-29-23-35-12     expires in 1 hour
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-35        expires in 1 day
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:hour:2026-10-29-23          expires in 1 day
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:day:2026-10-29              expires in 30 days
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:month:2026-10               expires in 180 days
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:year:2026                   expires in 10 years
 ```
 
-Every HTTP method gets its own keys:
+Every HTTP method gets its own keys (`h.Q2mN…` is `api/users`, `h.k7Hq…` is `api/users/<id>`):
 
 ```text
-demo:API:GET:api/users:min:2026-10-29-23-30                 48   ← list users
-demo:API:POST:api/users:min:2026-10-29-23-30                 6   ← create user
-demo:API:GET:api/users/<id>:min:2026-10-29-23-30           212   ← get one user
-demo:API:PUT:api/users/<id>:min:2026-10-29-23-30             9   ← replace user
-demo:API:PATCH:api/users/<id>:min:2026-10-29-23-30          17   ← update user
-demo:API:DELETE:api/users/<id>:min:2026-10-29-23-30          2   ← delete user
+demo:API:GET:h.Q2mN8vR4tY6wX1zB3cD5eF:min:2026-10-29-23-30       48   ← list users
+demo:API:POST:h.Q2mN8vR4tY6wX1zB3cD5eF:min:2026-10-29-23-30       6   ← create user
+demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-30      212   ← get one user
+demo:API:PUT:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-30        9   ← replace user
+demo:API:PATCH:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-30     17   ← update user
+demo:API:DELETE:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-30     2   ← delete user
 ```
 
 Totals:
@@ -75,18 +77,18 @@ Failed requests (status 500 or higher) can also get their own key; see [Choose w
 
 ## What gets counted
 
-| TYPE | What | ACTION | Example key |
+| TYPE | What | ACTION | Example name (hashed in the key) |
 | --- | --- | --- | --- |
-| `API` | Everything under `/api/` (except GraphQL), and JSON / REST endpoints elsewhere | HTTP method | `demo:API:POST:api/orders:min:…` |
-| `WEB` | Pages (HTML responses) | HTTP method | `demo:WEB:GET:blog/<slug>:min:…` |
-| `GRAPHQL` | GraphQL operations | `QUERY`, `MUTATION`, `SUBSCRIPTION` | `demo:GRAPHQL:QUERY:GetUser:min:…` |
-| `WSS` | WebSocket connections, messages, Socket.IO events | `CONNECT`, `MESSAGE`, `EVENT` | `demo:WSS:CONNECT:ws/chat:min:…` |
-| `SSE` | Server-sent event streams | HTTP method | `demo:SSE:GET:events/prices:min:…` |
-| `GRPC` | gRPC, gRPC-Web and Connect calls | `CALL` | `demo:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures, anything on a host or route with `rpc` in it, and calls out to such hosts | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION`, the HTTP method, or `OUT` for calls your app makes | `demo:RPC:CALL:eth_getBalance:min:…`, `demo:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:…` |
-| `OTHER` | Requests that match no route, and scanner paths (`.php`, `.env`, `wp-…`) | HTTP method | `demo:OTHER:GET:<unmatched>:min:…` |
-| `STATIC` | JS, CSS, images, fonts — **off by default** | HTTP method | `demo:STATIC:GET:assets/<file>:min:…` |
-| `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `demo:OUT:GET:rpc-testnet.example.com/rpc/v1/block:min:…` |
+| `API` | Everything under `/api/` (except GraphQL), and JSON / REST endpoints elsewhere | HTTP method | `api/orders` |
+| `WEB` | Pages (HTML responses) | HTTP method | `blog/<slug>` |
+| `GRAPHQL` | GraphQL operations | `QUERY`, `MUTATION`, `SUBSCRIPTION` | `GetUser` |
+| `WSS` | WebSocket connections, messages, Socket.IO events | `CONNECT`, `MESSAGE`, `EVENT` | `ws/chat` |
+| `SSE` | Server-sent event streams | HTTP method | `events/prices` |
+| `GRPC` | gRPC, gRPC-Web and Connect calls | `CALL` | `user.UserService/GetUser` |
+| `RPC` | JSON-RPC calls, Next.js Server Actions, tRPC procedures, anything on a host or route with `rpc` in it, and calls out to such hosts | `CALL`, `NOTIFY`, `ACTION`, `QUERY`, `MUTATION`, `SUBSCRIPTION`, the HTTP method, or `OUT` for calls your app makes | `eth_getBalance`, `rpc-testnet.example.com/rpc/v1/block` |
+| `OTHER` | Requests that match no route, and scanner paths (`.php`, `.env`, `wp-…`) | HTTP method | `<unmatched>` |
+| `STATIC` | JS, CSS, images, fonts — **off by default** | HTTP method | `assets/<file>` |
+| `OUT` | Calls your app makes to other services — **off by default** | HTTP method | `rpc-testnet.example.com/rpc/v1/block` |
 
 How each type is detected, checked in this order (the first match wins):
 
@@ -133,6 +135,7 @@ Outgoing calls (`track: { OUT: true }`) go either to your own backend or to thir
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "demo",
+  secretKey: "a-long-random-secret",
   track: { OUT: true },
   ownDomains: ["example.com", "example-api.io"], // also matches their subdomains
 });
@@ -226,10 +229,10 @@ Names never contain `:` (it is replaced with `/`) and are cut at 200 characters,
 
 ## Read the counts
 
-`searchKeys(pattern)` finds keys using Redis patterns (`*` matches anything). With a cluster it searches every node. `statRedis` is the connected ioredis client.
+`searchKeys(pattern)` finds keys using Redis patterns (`*` matches anything). With a cluster it searches every node. `statRedis` is the connected ioredis client. `hashName(name)` gives a route's hashed name, the part of its keys that stands for the route, so you can read one route's counts. It works once `statis.init` has run with your `secretKey`.
 
 ```ts
-import { searchKeys, statRedis } from "system-tracker";
+import { hashName, searchKeys, statRedis } from "system-tracker";
 
 async function todaysApiCounts() {
   const keys = await searchKeys("demo:API:*:day:2026-10-29");
@@ -243,11 +246,13 @@ async function todaysApiCounts() {
 }
 ```
 
+The keys you get back hold hashed names. The dashboard shows the real ones; in your own code, compare against `hashName("api/orders")` to tell routes apart.
+
 More patterns:
 
 ```ts
 searchKeys("demo:API:DELETE:*:day:2026-10-29");          // every DELETE today
-searchKeys("demo:API:*:api/users/<id>:hour:*");          // all methods on one route, every hour
+searchKeys(`demo:API:*:${hashName("api/users/<id>")}:hour:*`); // all methods on one route, every hour
 searchKeys("demo:WEB:*:day:2026-10-29");                 // all page views today
 searchKeys("demo:RPC:CALL:*:min:2026-10-29-23-*");       // JSON-RPC calls per minute in one hour
 searchKeys("demo:*:5xx:day:2026-10-29");                 // every failure key today
@@ -270,7 +275,7 @@ app.get("/api/statistics", async (req, res) => {
 });
 ```
 
-That endpoint is itself counted (`demo:API:GET:api/statistics`). Add it to `ignore.paths` if you don't want it in your numbers.
+That endpoint is itself counted (as `API GET api/statistics`). Add it to `ignore.paths` if you don't want it in your numbers.
 
 - `statRedis` works with any Redis command (`get`, `ttl`, `del`, …).
 - Errors are logged and return `null` instead of throwing.

@@ -21,6 +21,10 @@ export type Sample = {
 export declare const keepsSamples: () => boolean;
 export declare const samplesKey: (prefix: string, id: string) => string;
 export declare const failuresKey: (prefix: string, id: string) => string;
+export declare function readKept(redis: any, prefix: string, id: string): Promise<{
+    samples: Sample[];
+    failed: Sample[];
+}>;
 export declare function keepSamples(prefix: string, hits: Hit[], req: IncomingMessage, res: ServerResponse, url: string, cap: Capture, startedAt: number): void;
 export type OutCall = Omit<Sample, "sig" | "template"> & {
     template?: string;

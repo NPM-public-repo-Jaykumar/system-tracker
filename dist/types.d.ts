@@ -34,6 +34,7 @@ export type RedisOption = string | RedisStandalone | RedisCluster | {
 export type InitOptions = {
     redis: RedisOption;
     prefix: string;
+    secretKey?: string;
     timeConfig?: TimeConfig;
     ignore?: {
         paths?: string[];

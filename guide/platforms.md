@@ -50,7 +50,7 @@ These platforms pause your server, slow it down or shut it down when there's no 
 **What you'll see:** the dashboard and its sign-in page show a note in the bottom-left corner, with a **Listed servers** link to this page. It appears in two cases:
 
 - Cloud Functions, Firebase Functions and the Lambda Web Adapter are recognised at startup, so the note names the platform.
-- On the others, the plan or setting that causes the pauses can't be seen from inside the app. Instead, a timer checks once a second, and when it fires a minute or more late, the server was paused or slowed down. The note then says for how long and when. The last pause is kept in Redis at `system-tracker:paused:{prefix}` for 30 days, so every instance of your app shows it. The timer only runs when the dashboard is on.
+- On the others, the plan or setting that causes the pauses can't be seen from inside the app. Instead, a timer checks once a second, and when it fires a minute or more late, the server was paused or slowed down. The note then says for how long and when. The last pause is kept in Redis, encrypted, at `system-tracker:paused:{prefix}` for 30 days, so every instance of your app shows it. The timer only runs when the dashboard is on.
 
 Close the note with **×** and it stays closed in that browser. A different note, for example after moving the app to another platform, shows once more.
 
@@ -113,6 +113,7 @@ If your app runs on a server that keeps running but system-tracker says it turne
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "production",
+  secretKey: "a-long-random-secret",
   platformCheck: false,
 });
 ```

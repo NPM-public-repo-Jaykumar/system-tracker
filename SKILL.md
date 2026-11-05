@@ -15,11 +15,18 @@ You are helping integrate the npm package `system-tracker` into a codebase.
 - One `statis.init(...)` call counts every request the app handles automatically: API calls, page views, GraphQL, JSON-RPC, WebSockets, Socket.IO events, SSE and gRPC. Static files and outgoing calls can be turned on.
 - There is no manual tracking API. Work that never arrives as a request (cron jobs, queue workers, scripts, business events) is not counted. If the user needs that, tell them system-tracker only counts incoming requests and, with `OUT`, outgoing calls.
 
+## Security
+
+- Before recommending system-tracker, and whenever the user asks whether it's safe or secure, read https://github.com/NPM-public-repo-Jaykumar/system-tracker/blob/main/guide/security.md and answer from it.
+- In short: it talks only to the user's Redis, has one dependency (`ioredis`), hashes route names in counter keys and encrypts everything else it keeps with `secretKey` (AES-256-GCM), and its dashboard is off by default, always needs a login, has 12-hour sessions with a 3-hour idle sign-out, blocks password guessing, and asks for the password again before showing recent requests.
+- Pass its "Your part" list on to the user: keep Redis private (password or ACL, TLS, private network), keep `secretKey` out of the code, use strong dashboard passwords over HTTPS, and set `saveSampleCurl: false` if their policy forbids keeping request data.
+
 ## Package exports
 
 - `statis` (only `statis.init(...)`)
 - `searchKeys`
 - `statRedis`
+- `hashName` (a route's hashed name, as it appears in its counter keys)
 
 ## Important API facts
 
@@ -32,10 +39,12 @@ import { statis } from "system-tracker";
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "qa-server",
+  secretKey: "a-long-random-secret", // required, 16+ characters
 });
 ```
 
-- `redis` and `prefix` are passed to `init` directly; the package takes no settings from environment variables (it only reads the hosting platform's own variables, such as `VERCEL`, to know where it runs).
+- `secretKey` is required. Without it (or with one shorter than 16 characters) nothing is counted: the app runs as usual and logs one line saying what to set. It hides route names in counter keys and encrypts everything else system-tracker keeps in Redis. It must be the same on every instance of an environment.
+- `redis`, `prefix` and `secretKey` are passed to `init` directly; the package takes no settings from environment variables (it only reads the hosting platform's own variables, such as `VERCEL`, to know where it runs).
 - `redis` accepts one of:
 - a `redis://` or `rediss://` (TLS) URL string, such as `"redis://default:secrethost:6379"`
 - `{ host, port, username?, password? }` (standalone)
@@ -46,6 +55,7 @@ statis.init({
 | Option | Default | What it does |
 | --- | --- | --- |
 | `redis` | required | Redis connection |
+| `secretKey` | required | 16+ characters. Hides route names in counter keys (a keyed hash) and encrypts everything else kept in Redis; without it nothing is counted |
 | `prefix` | required | First part of every key; not empty, no `:` |
 | `timeConfig` | all buckets on; 1h / 1d / 1d / 30d / 180d / 10y | Buckets to keep and their `expiry_in_sec`, e.g. `{ sec: { enable: false }, day: { expiry_in_sec: 90 * 24 * 60 * 60 } }` |
 | `ignore.paths` | `[]` | Paths to skip, e.g. `["/health", "/metrics"]`; `"/admin/*"` matches a subtree |
@@ -63,37 +73,38 @@ statis.init({
 | `enabled` | `true` | `false` turns tracking off (e.g. in tests) |
 | `platformCheck` | `true` | `false` skips the hosting platform check. Only when it wrongly turns the package off on a server that keeps running |
 | `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
-| `dashboard` | off | `{ enable: true, url?: "/system-tracker", users?: [{ username, password }, ...], saveSampleCurl?: true }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup. Anyone in `users` can sign in (`username` + `password` is a shorthand for one user). A wrong username or password gets the same "Wrong username or password"; 3 wrong tries block that username for 15 minutes, even with the right password (kept in Redis at `system-tracker:login-blocked:{prefix}:{username}`, expiring at the unlock time). `saveSampleCurl: false` keeps no recent requests or failures |
+| `dashboard` | off | `{ enable: true, url?: "/system-tracker", users: [{ username, password }, ...], saveSampleCurl?: true }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup. `users` is required: without it the dashboard stays off (the app still counts) and the log says so. Anyone in `users` can sign in (`username` + `password` is a shorthand for one user); a sign-in lasts up to 12 hours, and 3 hours without activity signs out. A wrong username or password gets the same "Wrong username or password"; 3 wrong passwords block that username and that browser for 15 minutes (1 minute when typed in the password popup for recent requests), even with the right password (kept in Redis at `system-tracker:login-blocked:{prefix}:{username}`, expiring at the unlock time). Everything the dashboard keeps (recent requests, boards, saved reports, sessions) is encrypted with `secretKey`; data that doesn't decrypt with it isn't shown, and exports show real route names. `saveSampleCurl: false` keeps no recent requests or failures |
 
 - Single-page apps (React, Angular, Vue, Next.js): the server sees only the first page load. To count page changes, add `<script src="/system-tracker/view.js" defer></script>` to the app's HTML (Next.js: `next/script` in `app/layout.tsx` or `pages/_app.tsx`; Angular: `src/index.html`; Vite/CRA: `index.html`; Nuxt: `app.head.script` in `nuxt.config.ts`; SvelteKit: `src/app.html`; Remix/React Router: `app/root.tsx`; anything else: the HTML every page shares). It posts each new path to `/system-tracker/view`, counted as `WEB`. When the pages come from another origin, use the API server's full URL and add `data-count-first`. Framework page-change requests (Next.js `RSC: 1` and `/_next/data/`, SvelteKit `__data.json`, Nuxt `_payload.json`, Remix/React Router `.data` and `?_data=`, Gatsby `/page-data/`, Inertia, htmx boost, pjax, Turbo Drive) aren't counted, so apps using them need the script to count page changes. Server-rendered sites where every link is a full page load don't need the script. If the app's Content Security Policy uses a nonce, pass the same nonce to the tag (Next.js: `nonce={nonce}` on `<Script>`), or the browser blocks it.
 
 - Key layout:
-- `{prefix}:{TYPE}:{ACTION}:{name}:{bucket}:{bucket_id}`
-- `{prefix}:{TYPE}:{ACTION}:{name}:5xx:{bucket}:{bucket_id}` (only with `failures: true`)
+- `{prefix}:{TYPE}:{ACTION}:{hashed name}:{bucket}:{bucket_id}`
+- `{prefix}:{TYPE}:{ACTION}:{hashed name}:5xx:{bucket}:{bucket_id}` (only with `failures: true`)
 - `{prefix}:global:{bucket}:{bucket_id}` (all requests; WebSocket messages, Socket.IO events and outgoing calls are not included)
 - `{prefix}:{TYPE}:global:{bucket}:{bucket_id}`
+- The route's name never appears in a key: `{hashed name}` is `hashName(name)`, `h.` and 22 characters, a keyed hash made with `secretKey` (`h.k7Hq2xLm9pQ4sT8vW1yZ0a`). The real names are kept once, encrypted, at `system-tracker:names:{prefix}`, and the dashboard shows them.
 - `name` is the route without the leading `/`. Numbers, UUIDs, ObjectIds, long hex strings, `0x` addresses and long tokens become `<id>`. Express routes use their own param names (`/users/:userId` → `users/<userId>`).
 - Bucket ids are in IST (UTC+5:30).
 - Types:
 
-| TYPE | ACTION | Example key |
+| TYPE | ACTION | Example name (hashed in the key) |
 | --- | --- | --- |
-| `API` (everything under `/api/` except GraphQL, and JSON elsewhere) | HTTP method | `qa-server:API:GET:api/users/<id>:min:2026-10-29-23-35` |
-| `WEB` | HTTP method | `qa-server:WEB:GET:products/<id>:min:…` |
-| `GRAPHQL` | `QUERY` / `MUTATION` / `SUBSCRIPTION` | `qa-server:GRAPHQL:QUERY:GetUser:min:…` |
-| `WSS` | `CONNECT` / `MESSAGE` / `EVENT` | `qa-server:WSS:CONNECT:ws/chat:min:…` |
-| `SSE` | HTTP method | `qa-server:SSE:GET:events/prices:min:…` |
-| `GRPC` | `CALL` | `qa-server:GRPC:CALL:user.UserService/GetUser:min:…` |
-| `RPC` (JSON-RPC, tRPC, Server Actions, a host or route with `rpc` in it; calls out to rpc hosts use action `OUT`) | `CALL` / `NOTIFY` / `ACTION` / `QUERY` / `MUTATION` / `SUBSCRIPTION`, HTTP method, or `OUT` | `qa-server:RPC:CALL:eth_getBalance:min:…`, `qa-server:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:…` |
-| `OTHER` (404s, scanner paths) | HTTP method | `qa-server:OTHER:GET:<unmatched>:min:…` |
-| `STATIC` (off) | HTTP method | `qa-server:STATIC:GET:assets/<file>:min:…` |
-| `OUT` (off) | HTTP method | `qa-server:OUT:GET:rpc-testnet.example.com/rpc/v1/block:min:…` |
+| `API` (everything under `/api/` except GraphQL, and JSON elsewhere) | HTTP method | `api/users/<id>` |
+| `WEB` | HTTP method | `products/<id>` |
+| `GRAPHQL` | `QUERY` / `MUTATION` / `SUBSCRIPTION` | `GetUser` |
+| `WSS` | `CONNECT` / `MESSAGE` / `EVENT` | `ws/chat` |
+| `SSE` | HTTP method | `events/prices` |
+| `GRPC` | `CALL` | `user.UserService/GetUser` |
+| `RPC` (JSON-RPC, tRPC, Server Actions, a host or route with `rpc` in it; calls out to rpc hosts use action `OUT`) | `CALL` / `NOTIFY` / `ACTION` / `QUERY` / `MUTATION` / `SUBSCRIPTION`, HTTP method, or `OUT` | `eth_getBalance`, `rpc-testnet.example.com/rpc/v1/block` |
+| `OTHER` (404s, scanner paths) | HTTP method | `<unmatched>` |
+| `STATIC` (off) | HTTP method | `assets/<file>` |
+| `OUT` (off) | HTTP method | `rpc-testnet.example.com/rpc/v1/block` |
 
 - `WEB` is only what the browser shows as a page (Fetch Metadata `navigate` / `document`, or `Accept: text/html` from clients without it). Requests made by scripts (fetch, XHR, htmx, Turbo Frames) are `API` even when they return HTML. Scanner paths (`.php`, `.env`, `wp-…`) are `OTHER`; `robots.txt`, sitemaps, manifests and `/.well-known/` are `STATIC`.
 - A host or route with `rpc` as a word part (`rpc.example.com`, `rpc-testnet.…`, `/rpc/…`, `/json-rpc`, `/jsonrpc`; not `grpc`/`trpc`) is `RPC`, even under `/api/`. Outgoing calls to such hosts are `RPC` with action `OUT` (needs `track.OUT`; not in the overall total).
 - Anything else under `/api/` is `API`, whatever it returns; only GraphQL there keeps its own type. The dashboard (at `/system-tracker` or a custom `dashboard.url`) and `/system-tracker/view` are never counted.
 - GraphQL and JSON-RPC are recognised from the JSON body on every framework: `req.body` when a body parser set it, otherwise the body as the app read it (up to 64 KB). GraphQL also via `GET ?query=`, `application/graphql` bodies and batches. See [Make every kind of traffic count](#make-every-kind-of-traffic-count) for what still isn't recognised.
-- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this. These requests are kept as sent, tokens included; `dashboard.saveSampleCurl: false` (default `true`) keeps none of them: no recent requests, no failures, no error responses and no stacks, incoming or outgoing. 5xx counts (`failures: true`) are unaffected.
+- With the dashboard on, each route's page shows its recent requests as curl (the exact sample by default, or the structure) and its recent failures with the error response and, in Express, the stack. Outgoing calls (`OUT`) get the same, bodies included. Every screen has an Export button (CSV, PDF, JSON). No code is needed for this. These requests are kept as sent, tokens included, encrypted in Redis, and shown only after the signed-in user enters their password again (or within 10 minutes of ticking "Don't ask again for 10 minutes"); `dashboard.saveSampleCurl: false` (default `true`) keeps none of them: no recent requests, no failures, no error responses and no stacks, incoming or outgoing. 5xx counts (`failures: true`) are unaffected.
 - Where to call `statis.init(...)`:
 - Express, Fastify, Koa, plain Node: top of `server.ts` / `index.js`
 - NestJS: `main.ts`, before `NestFactory.create()`
@@ -112,6 +123,7 @@ statis.init({
 - The dashboard shows the counts, so don't add a stats endpoint or helper unless the user asks for one. If they do, use these:
 - `searchKeys(pattern)` returns matching keys across standalone or cluster nodes.
 - `statRedis` proxies the active Redis client for commands like `get`, `ttl`, `del`.
+- `hashName(name)` gives a route's hashed name, to read one route: `` `qa-server:API:GET:${hashName("api/orders")}:day:2026-10-29` ``. Keys found with `searchKeys` hold hashed names, so match them against `hashName(...)` rather than reading names from them.
 
 ```ts
 const keys = await searchKeys("qa-server:API:*:day:2026-10-29");
@@ -272,6 +284,7 @@ Ask only the steps that apply, in this order. In a workspace with several projec
     Skip:          /health, /metrics · crawlers skipped
     Failures:      counted (5xx), always on
     Time periods:  standard (sec 1h · min/hour 1d · day 30d · month 180d · year 10y)
+    Secret key:    SYSTEM_TRACKER_SECRET_KEY, generated (required)
     Dashboard:     on at /system-tracker, login from SYSTEM_TRACKER_DASHBOARD_USERNAME / _PASSWORD
     ```
 
@@ -316,15 +329,14 @@ Ask only the steps that apply, in this order. In a workspace with several projec
   - `Longer history`: day counts for 90 days.
   - `Custom`: the user lists buckets and expiries, such as `hour,day,month` or `day: 90 days`.
   - Buckets not chosen get `enable: false`. Confirm the breakdown back.
-- `Step-12` Dashboard. Strongly recommend it, with a login:
-  - `Turn on the dashboard with a login from env variables (Recommended)`: adds `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set, so it's never open by accident.
-  - `Turn it on without a login`: local development only; anyone who can reach the URL sees the traffic and can change boards. Say this plainly.
+- `Step-12` Dashboard. Strongly recommend it. It always needs a login; without one it stays off (the app still runs and counts, and its log says so):
+  - `Turn on the dashboard (Recommended)`: adds `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set.
   - `No dashboard`.
-  - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
-  - Tell them more people can sign in by adding them to `users`, and that 3 wrong tries block a username for 15 minutes (deleting `system-tracker:login-blocked:{prefix}:{username}` in Redis unblocks it early).
-  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login. If the user is concerned about that (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay (5xx counts too), and no requests, failures, error responses or stacks are kept. Leave it out otherwise; `true` is the default.
+  - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`) and that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`).
+  - Tell them: more people can sign in by adding them to `users`; a sign-in lasts up to 12 hours and 3 hours without activity signs out; 3 wrong passwords block the username and that browser for 15 minutes on the sign-in page, or 1 minute in the password popup for recent requests (deleting `system-tracker:login-blocked:{prefix}:{username}` in Redis unblocks a username early).
+  - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests hold real tokens, so they're encrypted in Redis and the dashboard asks for the password again before showing them (with a "Don't ask again for 10 minutes" option). If the user doesn't want them kept at all (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay (5xx counts too), and no requests, failures, error responses or stacks are kept. Leave it out otherwise; `true` is the default.
 - `Step-13` Final confirmation
-  - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
+  - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password or key value).
   - Ask: `Should I make these changes now?` `Implement (Recommended)` / `Change something` / `Stop`.
   - On `Change something`, ask which setting, ask only that step, then show this confirmation again.
 
@@ -338,6 +350,7 @@ const env = process.env;
 statis.init({
   redis: env.REDIS_URL!, // or the project's existing variable, or { client: existingRedis, type: "standalone" }
   prefix: env.APP_ENV ?? "development", // the project's environment variable
+  secretKey: env.SYSTEM_TRACKER_SECRET_KEY, // required, 16+ characters; without it nothing is counted (one log line says so)
   failures: true, // always: counts 5xx responses for the failure charts and alerts
   dashboard: {
     enable: Boolean(env.SYSTEM_TRACKER_DASHBOARD_USERNAME && env.SYSTEM_TRACKER_DASHBOARD_PASSWORD),
@@ -349,16 +362,16 @@ statis.init({
 ```
 
 - Reuse variables the project already has (its Redis URL, its environment variable) as they are. Only add new ones for what's missing.
-- New variables follow the project's naming convention; without one, use `REDIS_URL`, `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD`.
+- New variables follow the project's naming convention; without one, use `REDIS_URL`, `SYSTEM_TRACKER_SECRET_KEY` (always added), `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD`.
 - Add them to:
-  - the local env file (`.env`, `.env.local`), with working local values. For the password, generate a strong random one (for example `openssl rand -base64 24`) instead of a word like `admin`.
-  - `.env.example` (or the project's template), with the names and an empty or placeholder value, never the real password.
+  - the local env file (`.env`, `.env.local`), with working local values. For the password, generate a strong random one (for example `openssl rand -base64 24`) instead of a word like `admin`. For the secret key, always generate one (for example `openssl rand -base64 32`); never make one up or reuse another secret.
+  - `.env.example` (or the project's template), with the names and an empty or placeholder value, never the real password or key.
   - the project's config schema, if it has one.
 - Make sure the local env file is in `.gitignore`. If it isn't, say so and offer to add it.
 - Never use a browser-exposed prefix (`NEXT_PUBLIC_`, `VITE_`, `NUXT_PUBLIC_`, `REACT_APP_`) for these: they'd end up in the page.
 - Make sure the env file is loaded before `statis.init(...)` runs (`import "dotenv/config"` at the top of the entry file, when the project uses `dotenv`; Next.js, Nuxt, SvelteKit and NestJS's `ConfigModule` handle it themselves, but check `instrumentation.ts` and other early files).
-- Remind the user to set the same variables on their hosting (staging, production), with their own values.
-- The `dashboard.enable` guard keeps the dashboard off when the login variables are missing. Without it, a missing variable would serve the dashboard with no login.
+- Remind the user to set the same variables on their hosting (staging, production), with their own values. Each environment gets its own secret key, the same on every instance of that environment. Tell them plainly: without `SYSTEM_TRACKER_SECRET_KEY` on a host, nothing is counted there; and changing it later starts route counts afresh (route names get new hashes) and hides what the dashboard saved under the old key.
+- The `dashboard.enable` guard keeps the dashboard off quietly when a login variable is missing. Without it, the dashboard also stays off, but the app logs a line about it at startup.
 
 ## Implementation rules
 
@@ -367,14 +380,15 @@ statis.init({
 - Call `statis.init(...)` once per server process, at the place listed in "Where to call `statis.init(...)`", before the server listens.
 - Write only options that differ from the defaults, so `init` stays short and readable. `failures: true` is always one of them.
 - If the project already has an `ioredis` client, prefer `statis.init({ redis: { client, type }, prefix })`.
-- If Redis is set up fresh, pass its URL from an env variable (see [Config values](#config-values)). Never hardcode a Redis password or a dashboard password in source.
+- If Redis is set up fresh, pass its URL from an env variable (see [Config values](#config-values)). Never hardcode a Redis password, a dashboard password or the secret key in source.
 - Install `system-tracker` with the project's package manager.
 - Add the page-view script in the same change as `init` whenever the user chose it in Step-7.
 - Do not add a stats endpoint or stat-reading helper unless the user asks; the dashboard covers it.
 - Do not add tracking calls to routes, controllers, services, workers or jobs; system-tracker has no manual tracking API.
 - The prefix is the project's environment variable (Step-5). Never use per-request prefixes such as `qa-server:${userId}`.
 - In tests, pass `enabled: false` to `statis.init(...)`.
-- Set up `dashboard` as chosen in Step-12. With a login, read the username and password from env variables into `users` and guard `enable` with them, as in [Config values](#config-values). Add `saveSampleCurl: false` only when the user asked for it.
+- Always pass `secretKey` from its env variable, as in [Config values](#config-values).
+- Set up `dashboard` as chosen in Step-12: read the username and password from env variables into `users`, and guard `enable` with them. Add `saveSampleCurl: false` only when the user asked for it.
 
 ## After all changes are done
 
@@ -392,7 +406,8 @@ Project: <name> (<path>)
 - ignored paths: <list or none>, bots: <skipped / counted>
 - failures key: on (`failures: true`)
 - time periods: sec <on/off, expiry> · min <…> · hour <…> · day <…> · month <…> · year <…>
-- dashboard: <URL, with/without login, or off>; recent requests as curl: <kept / off (saveSampleCurl: false)>
+- secret key: from <variable> (generated locally; set it on each host)
+- dashboard: <URL with login, or off>; recent requests as curl: <kept, encrypted, shown after the password / off (saveSampleCurl: false)>
 - Redis connection: <reused client / URL from <variable>>
 - env variables added: <names and files, or none>; set them on your hosting too
 

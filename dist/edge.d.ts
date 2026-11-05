@@ -6,3 +6,4 @@ export declare const statis: {
 };
 export declare const statRedis: RedisClient;
 export declare function searchKeys(_pattern: string): Promise<string[]>;
+export declare function hashName(name: string): string;

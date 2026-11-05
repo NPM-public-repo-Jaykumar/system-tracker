@@ -1,5 +1,4 @@
 import type { AutoConfig, TimeBucket } from "../types";
-import { type Sample } from "../auto/samples";
 export declare const TIME_BUCKETS: TimeBucket[];
 export declare const RANGE: Record<TimeBucket, number>;
 export declare class BadRequest extends Error {
@@ -114,8 +113,7 @@ export declare function typeView(typeParam: string | null, range: string | null,
     })[];
 }>;
 export declare function routeView(q: URLSearchParams, now?: number): Promise<{
-    samples: never[];
-    failed: never[];
+    kept: null;
     samplesOff: boolean;
     key: string;
     buckets: TimeBucket[];
@@ -134,8 +132,10 @@ export declare function routeView(q: URLSearchParams, now?: number): Promise<{
         counts: number[];
     };
 } | {
-    samples: Sample[];
-    failed: Sample[];
+    kept: {
+        samples: number;
+        failed: number;
+    };
     samplesOff?: undefined;
     key: string;
     buckets: TimeBucket[];
@@ -153,4 +153,12 @@ export declare function routeView(q: URLSearchParams, now?: number): Promise<{
         ids: string[];
         counts: number[];
     };
+}>;
+export declare function requestsView(body: any): Promise<{
+    samples: import("../auto/samples").Sample[];
+    failed: import("../auto/samples").Sample[];
+} | {
+    samples: never[];
+    failed: never[];
+    samplesOff: boolean;
 }>;

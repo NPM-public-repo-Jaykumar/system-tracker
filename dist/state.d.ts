@@ -5,6 +5,11 @@ export declare const DEFAULT_TIME_CONFIG: Record<TimeBucket, {
     enable: boolean;
     expiry_in_sec: number;
 }>;
+export type Vault = {
+    id: string;
+    enc: Buffer;
+    mac: Buffer;
+};
 export declare function setRedis(client: RedisClient): RedisClient;
 export declare function getRedis(): RedisClient | null;
 export declare function getRedisOrThrow(): RedisClient;
@@ -26,3 +31,5 @@ export declare function markStarted(): void;
 export declare function setPlatform(platform: Platform | null): void;
 export declare function getPlatform(): Platform | null;
 export declare function isTurnedOff(): boolean;
+export declare function setVault(vault: Vault | null): void;
+export declare function getVault(): Vault | null;

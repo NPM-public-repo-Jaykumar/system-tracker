@@ -12,6 +12,7 @@ Choose which buckets to keep and for how long:
 statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
   timeConfig: {
     sec: { enable: true, expiry_in_sec: 60 * 60 }, // 1 hour
     min: { enable: true },                         // default: 1 day
@@ -68,23 +69,23 @@ Every type, with its default:
 statis.init({
   // ...
   track: {
-    API: true,      // /api/... and JSON / REST       demo:API:GET:api/users/<id>
-    WEB: true,      // pages (HTML responses)         demo:WEB:GET:products/<id>
-    GRAPHQL: true,  // GraphQL operations             demo:GRAPHQL:QUERY:GetUser
-    RPC: true,      // JSON-RPC, tRPC, rpc hosts and routes  demo:RPC:CALL:eth_getBalance
+    API: true,      // /api/... and JSON / REST       API GET api/users/<id>
+    WEB: true,      // pages (HTML responses)         WEB GET products/<id>
+    GRAPHQL: true,  // GraphQL operations             GRAPHQL QUERY GetUser
+    RPC: true,      // JSON-RPC, tRPC, rpc hosts and routes  RPC CALL eth_getBalance
     WSS: true,      // WebSocket connections, messages and Socket.IO events
-                    //                                demo:WSS:CONNECT:ws/chat
-    SSE: true,      // server-sent event streams      demo:SSE:GET:events/prices
-    GRPC: true,     // gRPC calls                     demo:GRPC:CALL:user.UserService/GetUser
-    OTHER: true,    // requests that match no route   demo:OTHER:GET:<unmatched>
-    STATIC: false,  // JS, CSS, images, fonts         demo:STATIC:GET:assets/<file>
-    OUT: false,     // calls your app makes to others demo:OUT:GET:api.stripe.com/v1/charges
+                    //                                WSS CONNECT ws/chat
+    SSE: true,      // server-sent event streams      SSE GET events/prices
+    GRPC: true,     // gRPC calls                     GRPC CALL user.UserService/GetUser
+    OTHER: true,    // requests that match no route   OTHER GET <unmatched>
+    STATIC: false,  // JS, CSS, images, fonts         STATIC GET assets/<file>
+    OUT: false,     // calls your app makes to others OUT GET api.stripe.com/v1/charges
   },
   global: {
     total: true,    // demo:global:{bucket}:{bucket_id}         — every request
     perType: true,  // demo:{TYPE}:global:{bucket}:{bucket_id}  — every request of one type
   },
-  failures: false,  // true adds demo:{TYPE}:{ACTION}:{name}:5xx:… for status 500 and above
+  failures: false,  // true adds demo:{TYPE}:{ACTION}:{hashed name}:5xx:… for status 500 and above
 });
 ```
 
@@ -121,9 +122,11 @@ Totals:
 Failures: with `failures: true`, a request answered with status 500 or higher gets one extra key, next to its normal one:
 
 ```text
-demo:API:GET:api/users/<id>:min:2026-10-29-23-35        all requests
-demo:API:GET:api/users/<id>:5xx:min:2026-10-29-23-35    failed requests
+demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-10-29-23-35        all requests to api/users/<id>
+demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:5xx:min:2026-10-29-23-35    the failed ones
 ```
+
+(The route's name is hashed in its keys; see [Redis keys](how-it-works.md#redis-keys).)
 
 The normal key still counts the failed request, so the failure rate is `5xx ÷ all`. Failure keys are only written for HTTP requests (any `TYPE` that has a status code), not for WebSocket messages, gRPC streams or outgoing calls.
 
@@ -210,8 +213,8 @@ statis.init({
 - `maxNamesPerType`: each `TYPE` keeps at most this many names. New names after that are counted as `<other>`:
 
   ```text
-  demo:API:GET:api/users/<id>:min:…    ← one of the first 200 names
-  demo:API:GET:<other>:min:…           ← everything after that
+  API GET api/users/<id>    ← one of the first 200 names
+  API GET <other>           ← everything after that
   ```
 
 - `collapseAfter`: once one position in a URL has seen more than this many different values, that position becomes `<slug>`:
@@ -230,6 +233,7 @@ The limits are kept in memory and start again when the app restarts.
 | --- | --- | --- |
 | `redis` | required | Redis URL or connection (see [Connect to Redis](#connect-to-redis)) |
 | `prefix` | required | First part of every key. Must not be empty or contain `:` |
+| `secretKey` | required | 16+ characters, the same on every instance of your app. Hides route names in counter keys and encrypts everything else system-tracker keeps in Redis (see [Security](security.md)). Without it, nothing is counted and your app's log says so; your app runs as usual |
 | `timeConfig` | see [Expiry](#expiry) | Buckets to keep and their expiry |
 | `ignore.paths` | `[]` | Paths to skip (see [Skip requests](#skip-requests)) |
 | `ignore.methods` | `["OPTIONS", "HEAD"]` | Methods to skip |
@@ -246,7 +250,7 @@ The limits are kept in memory and start again when the app restarts.
 | `enabled` | `true` | `false` turns tracking off completely |
 | `platformCheck` | `true` | `false` skips the hosting platform check (see [If the check gets it wrong](platforms.md#if-the-check-gets-it-wrong)) |
 | `ownDomains` | `[]` | Domains of your own backend, for outgoing calls (see [Your own domains](how-it-works.md#your-own-domains)) |
-| `dashboard` | off | `{ enable, url, users, saveSampleCurl }` (see [Dashboard](dashboard.md#dashboard)); `url` defaults to `"/system-tracker"`, `users` is a list of `{ username, password }` (3 wrong tries block a username for 15 minutes), `saveSampleCurl` defaults to `true` (`false` keeps no recent requests or failures, so no headers, bodies, error responses or stacks) |
+| `dashboard` | off | `{ enable, url, users, saveSampleCurl }` (see [Dashboard](dashboard.md#dashboard)); `url` defaults to `"/system-tracker"`, `users` (required) is a list of `{ username, password }` (3 wrong passwords block the username and the browser for 15 minutes), `saveSampleCurl` defaults to `true` (`false` keeps no recent requests or failures, so no headers, bodies, error responses or stacks). Without a user the dashboard stays off |
 
 
 ## Connect to Redis
@@ -259,6 +263,7 @@ A Redis URL:
 statis.init({
   redis: "redis://default:secret@127.0.0.1:6379",
   prefix: "production",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -271,6 +276,7 @@ Standalone:
 statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -280,6 +286,7 @@ Secure standalone:
 statis.init({
   redis: { host: "127.0.0.1", port: 6379, username: "default", password: "secret" },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -295,6 +302,7 @@ statis.init({
     ],
   },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -312,6 +320,7 @@ statis.init({
     password: "secret",
   },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -326,6 +335,7 @@ const client = new Redis({ host: "127.0.0.1", port: 6379 });
 statis.init({
   redis: { client, type: "standalone" },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 
@@ -344,6 +354,7 @@ const client = new Redis.Cluster([
 statis.init({
   redis: { client, type: "cluster" },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
 });
 ```
 

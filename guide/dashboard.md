@@ -8,10 +8,11 @@ A built-in dashboard shows these counts in your browser. See it in the [walkthro
 statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
   prefix: "demo",
+  secretKey: "a-long-random-secret", // required, 16+ characters (see Encryption below)
   dashboard: {
     enable: true,            // default: false
     url: "/system-tracker",  // default: "/system-tracker"
-    users: [                 // optional: no login when omitted
+    users: [                 // who can sign in; required
       { username: "admin", password: "change-me" },
       { username: "ops", password: "another-strong-one" },
     ],
@@ -30,19 +31,38 @@ Then open `/system-tracker` on your app's own host and port, for example `http:/
 | --- | --- | --- |
 | `dashboard.enable` | `false` | Serve the dashboard |
 | `dashboard.url` | `"/system-tracker"` | The path it's served at (leading and trailing `/` are optional) |
-| `dashboard.users` | — | Who can sign in: a list of `{ username, password }`. Show a sign-in page when set. See [Sign-in](#sign-in) |
+| `dashboard.users` | — | Required. Who can sign in: a list of `{ username, password }`. See [Sign-in](#sign-in) |
 | `dashboard.username`, `dashboard.password` | — | A shorthand for a single user. Set both or neither; they're added to `users` |
 | `dashboard.saveSampleCurl` | `true` | Keep each route's recent requests and failures (with the error response and stack). `false` keeps none of them. See [Recent requests and failures](#recent-requests-and-failures) |
 
+The dashboard needs at least one user. Without one it stays off and your app's log says so: `[system-tracker] the dashboard is off until you set a login (dashboard.users). Counting works as usual.` The top-level `secretKey` is needed for everything (see [Encryption](#encryption)).
+
 ## Sign-in
 
-With `users` set, the dashboard shows a sign-in page and anyone in the list can sign in.
+The dashboard shows a sign-in page, and anyone in `users` can sign in.
 
-- A wrong username and a wrong password get the same answer, "Wrong username or password", so the page never tells which usernames exist. Each wrong try also waits 400 ms.
-- After 3 wrong tries for a username, that username is blocked for 15 minutes, even with the right password. The page says "Too many failed sign-ins for this username. Try again in 15 minutes." Usernames that aren't in the list are blocked the same way. Other users can still sign in.
-- The 3 tries count within 15 minutes of the first one. A successful sign-in clears them.
-- The block is kept in your Redis, so every instance of your app shares it: `system-tracker:login-blocked:{prefix}:{username}` exists while the username is blocked, its value is the unlock time (in ms) and it expires at that time. Failed tries are counted at `system-tracker:login-fails:{prefix}:{username}`. To unblock someone early, delete their `login-blocked` key. While Redis can't be reached, both are kept in the app's memory.
-- Each user gets their own session. Changing a user's password, or removing them from the list, signs out only that user.
+- **How long you stay signed in**: a sign-in lasts at most 12 hours, however active you are. 3 hours without activity sign you out sooner. Only what you do counts as activity (clicking, typing, scrolling, moving between pages); the dashboard's own refreshes don't, so a tab left open still signs out. The sign-in page then says why, for example "You were signed out after 3 hours without activity."
+- **Sessions are kept in your Redis**, so every instance of your app shares them. The browser holds only a random token in an `HttpOnly`, `SameSite=Strict` cookie (also `Secure` over HTTPS). **Sign out** ends the session on the server, so a copied cookie stops working too. Each session is at `system-tracker:session:{prefix}:{id}`, encrypted, and expires on its own.
+- Changing a user's password, or removing them from the list, signs out only that user.
+- **Wrong passwords**: a wrong username and a wrong password get the same answer, "Wrong username or password", with how many tries are left, so the page never tells which usernames exist. Each wrong try also waits 400 ms.
+- **Blocks**: after 3 wrong passwords, the username is blocked, even with the right password, and so is the browser they were typed in, for every username. Usernames that aren't in the list are blocked the same way. Other users and other browsers can still sign in.
+  - On the sign-in page, the block lasts 15 minutes: "Too many failed sign-ins for this username. Try again in 15 minutes." or "Too many wrong passwords in this browser, so it can't sign in to any account for now."
+  - In the [password popup](#recent-requests-and-failures), it lasts 1 minute: "Too many wrong passwords. Try again in 1 minute." You stay signed in; for that minute the popup refuses even the right password, and that browser can't sign in to any other account.
+- The 3 tries count together, on the sign-in page and in the popup, within 15 minutes of the first one (1 minute when the first was in the popup). The right password clears them.
+- Blocks are kept in your Redis, so every instance of your app shares them: `system-tracker:login-blocked:{prefix}:{username}` exists while the username is blocked, its value is the unlock time (in ms) and it expires at that time. Failed tries are counted at `system-tracker:login-fails:{prefix}:{username}`. Browsers are blocked the same way at `system-tracker:browser-blocked:{prefix}:{id}` and `system-tracker:browser-fails:{prefix}:{id}`, where the id is a hash of a random cookie the dashboard gives each browser. To unblock someone early, delete their `login-blocked` (or `browser-blocked`) key. While Redis can't be reached, all of these are kept in the app's memory.
+- A browser is recognised by its cookie, so clearing cookies gets past the browser block. The username block still holds.
+
+## Encryption
+
+Your `secretKey` (top level in `init`) keeps what's in Redis private:
+
+- **Counter keys don't show route names.** Each route's name is replaced by a keyed hash, so `demo:API:GET:api/users/<id>:min:…` is kept as `demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:…`. The numbers stay plain, so Redis still adds to them in one step, as fast as before. The dashboard shows the real names, kept once, encrypted, at `system-tracker:names:{prefix}`. See [Redis keys](how-it-works.md#redis-keys).
+- **Everything else is encrypted**: recent requests and failures, boards, saved reports, sessions, route names and the pause note. Redis on its own shows only scrambled text (AES-256-GCM, each value tied to its key). The counts of failed sign-ins stay plain numbers.
+- **Exports show real names**: CSV, PDF and JSON exports, and saved reports, use the route names you see on screen, never the hashed ones.
+
+- Use the same `secretKey` on every instance of your app, and keep it out of your code (read it from an environment variable).
+- Anything that doesn't decrypt with the current key is left out of the dashboard: data saved under another key, or damaged. If you change the key, routes get new hashed names, so counting starts again for them, and older recent requests, boards and saved reports no longer show; everyone signs in again too. The overall and per-type totals keep counting.
+- When system-tracker starts, it deletes what an older version kept readable under your prefix: counters under readable route names, and unencrypted recent requests, failures, boards, saved reports and the pause note. Encrypted values are never touched, even ones this key can't open, and the overall and per-type totals and other prefixes are left alone.
 
 Four tabs, and each part loads only when you open it:
 
@@ -65,9 +85,9 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 **Export** (on every screen: the Overview, a type, a route, a board, a template and Settings): downloads what the screen shows, at the range picked on it. That's the numbers at the top, each chart's data over time and each table (for a route: its buckets, newest first; for a board: every chart and table on it; for Settings: storage and what's tracked). Pick CSV, PDF (a print view) or JSON. A route's recent requests and failures are left out, since they can hold tokens. Each export is saved with the reports below, so you can download it again later.
 
-**Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept at `system-tracker:reports:{prefix}` (a list) and `system-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
+**Export report** (Insights): pick a period, then CSV (for Excel or Google Sheets), PDF (a print view; choose "Save as PDF") or JSON, then click Export. A report has the totals, the chart, the split by type and up to 500 routes with their 5xx. Each export is also saved in your Redis, so the dialog lists earlier reports to download again in any format, or delete. They're kept, encrypted, at `system-tracker:reports:{prefix}` (a list) and `system-tracker:report:{prefix}:{id}` (one string per report), the newest 100.
 
-**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only system-tracker's own counter keys under your prefix are deleted, found with `SCAN` and checked against the key format, so other keys stay, and so do your boards and saved reports. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Reset needs a dashboard login (`dashboard.users`), so a dashboard without one can't delete anything. Each reset is written to your app's log, for example `[system-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
+**Reset data** (on the Overview and Insights): deletes counts for good. Pick what (everything, one type or one route) and when (all time, today, this week, this month, this quarter or this year). The dashboard first shows how many counters it will delete, then asks you to confirm. Only system-tracker's own counter keys under your prefix are deleted, found with `SCAN` (with any `*`, `?` or `[` in the prefix escaped, so a prefix like `app*` never matches another one) and checked against the key format, so other keys and other prefixes stay, and so do your boards, saved reports, sessions and blocks. Totals that include the deleted counts are lowered to match: deleting today lowers this month and this year, and deleting one route lowers its type's total and the overall total. Each reset is written to your app's log, for example `[system-tracker] dashboard reset (everything, all time): deleted 1345 counters, lowered 0 totals`.
 
 **Problems**: the rules below are checked over the picked period, against the period before it. Spikes, drops and recent failures use steps that fit the period: minutes for the last 15 minutes and the last hour, hours for today, days for a week or month, months for a quarter or year. Every complete step inside the period is searched, so a burst ten minutes ago still shows in the last hour, with its time ("40× its usual traffic at 17:31"); the usual level is the median of the 30 steps before it, or their average when most are empty, and hours and days are compared with the same hour or weekday earlier. Today and longer periods also list what the last hour found minute by minute, tagged "last hour", since a burst of a few minutes doesn't show in hourly or daily totals. The badge on the Insights tab and the Overview always show what's unusual right now (the last 30 minutes and today, like this table); the badge refreshes on every page, and those alerts are always in the list too, tagged "right now", whatever the period. Top routes can be folded away; the dashboard remembers it. Each refresh checks every route counted today, and the minute-by-minute traffic of up to 100 of them (the busiest, plus any with failures):
 
@@ -83,7 +103,11 @@ Hover any chart, including the small trend lines, to see the time and the value 
 
 ## Recent requests and failures
 
-Each route's page lists its recent requests, so you can see what's being sent and replay it. That includes outgoing calls (`OUT`): the call your app made to your backend or a third party, with its body. Pick the format at the top:
+Each route's page lists its recent requests, so you can see what's being sent and replay it. That includes outgoing calls (`OUT`): the call your app made to your backend or a third party, with its body.
+
+**They're behind your password.** These are real requests, with tokens, cookies, passwords and personal details, and anyone who sees them could act as your users. So the route's page first shows only how many are kept, for example "5 recent requests and 2 failures", with a **Show requests** button. It asks for the password you signed in with, and explains why. Tick **Don't ask again for 10 minutes** to see every route's requests without asking again for 10 minutes, in that browser, until you sign out. Without it, they show on that page until you leave it. The check is on the server: the requests aren't sent to the browser until the password is right. Wrong passwords count toward the [blocks](#sign-in).
+
+Pick the format at the top:
 
 - **curl sample** (the default): the request exactly as it was sent, ready to run.
 - **curl structure**: the route with its parameters, and every value replaced by its type. Use it to see the shape of a request. The browser remembers your choice.
@@ -117,9 +141,9 @@ curl -X POST 'https://api.example.com/api/users/42/profile?lang=en' \
 
 What's kept:
 
-- The method, URL, headers and body (up to 16 KB) as they were sent, including `Authorization`, cookies and API keys. Only connection headers (`Host`, `Content-Length`, `Connection`, `Accept-Encoding`, …) are left out; the host is part of the URL. Because of this, set a dashboard login, and keep your Redis private.
+- The method, URL, headers and body (up to 16 KB) as they were sent, including `Authorization`, cookies and API keys. Only connection headers (`Host`, `Content-Length`, `Connection`, `Accept-Encoding`, …) are left out; the host is part of the URL. Each one is [encrypted](#encryption) in Redis and shown only after your password.
 - HTTP requests your app receives, and outgoing calls made with `fetch`, `http` or `https` (axios, got and node-fetch use these). An outgoing body is kept when it's text: a string, `URLSearchParams` or a buffer for `fetch`, and whatever is written to the request for `http` and `https`. Form data and streams aren't read. WebSocket traffic and gRPC have no curl.
-- Saved in your Redis as lists at `system-tracker:samples:{prefix}:{TYPE}:{ACTION}:{name}` and `system-tracker:failures:{prefix}:{TYPE}:{ACTION}:{name}`, kept 30 days after their last write. Resetting a route, a type or everything for all time deletes them too.
+- Saved in your Redis as lists at `system-tracker:samples:{prefix}:{TYPE}:{ACTION}:{hashed name}` and `system-tracker:failures:{prefix}:{TYPE}:{ACTION}:{hashed name}`, kept 30 days after their last write. Each item is encrypted; next to it is only a keyed hash used to spot repeats and the repeat count. Resetting a route, a type or everything for all time deletes them too.
 - Only while the dashboard is on. Without `dashboard.enable`, nothing is kept. So a route can have counts but no requests to show: counts from before the dashboard was turned on, or older than 30 days. The next request shows up within a minute.
 
 If you'd rather not keep requests, because they hold tokens, cookies and personal data, turn them off:
@@ -180,7 +204,7 @@ Charts sit on a grid four units wide (two on tablets, one on phones), and sizes 
 
 Charts on boards work like the built-in ones: hover for the crosshair and values, click the legend to hide a series, and click a bar, number, row or slice to open that route or type. Tables and donuts add up the whole range they show. Only types your app tracks can be charted. Text that doesn't fit ends in "…"; hover it to see all of it.
 
-Boards are saved in your Redis, as one JSON string at `system-tracker:dashboards:{prefix}` (at most 50 boards and 256 KB). Restarts and redeploys keep them, and every instance of your app and everyone using the dashboard shares them. Each save is also logged to the browser console.
+Boards are saved in your Redis, as one encrypted string at `system-tracker:dashboards:{prefix}` (at most 50 boards and 256 KB). Restarts and redeploys keep them, and every instance of your app and everyone using the dashboard shares them. Each save is also logged to the browser console.
 
 How it behaves:
 
@@ -188,6 +212,5 @@ How it behaves:
 - Pick how often it refreshes: live (every second), 5 s, 30 s (the default), 1 min, 5 min, 15 min, or off. ↻ refreshes right away. It doesn't refresh while the tab is hidden. A chart under your mouse pointer waits, so what you're reading holds still; it catches up as soon as the pointer leaves.
 - It's dark by default; the theme button switches to light. The browser remembers both choices.
 - It works on any screen size: on tablets and phones the layout stacks, tables scroll sideways and charts keep their proportions.
-- With `users` set, signing in sets an `HttpOnly`, `SameSite=Strict` cookie for 7 days. See [Sign-in](#sign-in) for blocked usernames.
-- Without `users`, anyone who can reach the URL can see your routes and traffic, the recent requests with their headers and bodies, and change your boards. The page shows a warning, and the server logs one at startup. In production, set a login and serve it over HTTPS.
+- It always needs a login. Sign-ins last up to 12 hours, 3 hours without activity sign you out, and wrong passwords block the username and the browser. See [Sign-in](#sign-in). In production, serve it over HTTPS.
 - Times are in IST, like the bucket ids in the keys.

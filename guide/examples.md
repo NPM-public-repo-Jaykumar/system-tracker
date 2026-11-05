@@ -15,6 +15,7 @@ import { searchKeys, statis, statRedis } from "system-tracker";
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "demo",
+  secretKey: "a-long-random-secret", // 16+ characters; read it from an env variable in real apps
   failures: true, // also count failed requests (status 500 and above)
   dashboard: { enable: true, users: [{ username: "admin", password: "change-me" }] },
 });
@@ -48,9 +49,11 @@ Open `http://localhost:4000/api/users/7` a few times, then `/api/statistics`:
 ```json
 [
   { "key": "demo:API:global:min:2026-11-02-16-05", "count": 3 },
-  { "key": "demo:API:GET:api/users/<id>:min:2026-11-02-16-05", "count": 3 }
+  { "key": "demo:API:GET:h.k7Hq2xLm9pQ4sT8vW1yZ0a:min:2026-11-02-16-05", "count": 3 }
 ]
 ```
+
+The second key is `api/users/<id>`: route names are hashed in keys (`hashName("api/users/<id>")` gives the same `h.…` part). The dashboard shows the real names.
 
 ## Express with JavaScript
 
@@ -63,6 +66,7 @@ const { searchKeys, statis, statRedis } = require("system-tracker");
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "demo",
+  secretKey: "a-long-random-secret",
   failures: true,
   dashboard: { enable: true, users: [{ username: "admin", password: "change-me" }] },
 });
@@ -95,6 +99,7 @@ const { statis } = require("system-tracker");
 statis.init({
   redis: "redis://127.0.0.1:6379",
   prefix: "local-demo",
+  secretKey: "a-long-random-secret",
   track: { OUT: true }, // count the calls this server makes
 });
 
@@ -113,6 +118,6 @@ http
 Each visit to `/api/call-block` counts twice: once as the request to your server, and once as the call it made. The RPC host has `rpc` in its name, so that call is counted as `RPC` with the action `OUT`. It isn't added to your app's total.
 
 ```text
-local-demo:API:GET:api/call-block:min:...
-local-demo:RPC:OUT:rpc-testnet.example.com/rpc/v1/block:min:...
+API GET api/call-block                         (the request to your server)
+RPC OUT rpc-testnet.example.com/rpc/v1/block   (the call it made)
 ```

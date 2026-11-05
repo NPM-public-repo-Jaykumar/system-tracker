@@ -20,7 +20,7 @@ Two parts, both in this section for each framework:
 | [Astro](#astro) | `src/middleware.ts` | your layout, with `<ClientRouter />` only |
 | [React, Vue, Angular, Svelte (Vite, CRA, Angular CLI)](#react-vue-angular-svelte-spa) | your API server | `index.html` |
 
-The examples use `{ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" }`; see [Connect to Redis](settings.md#connect-to-redis) for the other ways to connect.
+The examples use `{ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" }` (read the key from an environment variable in your app); see [Connect to Redis](settings.md#connect-to-redis) for the other ways to connect.
 
 ## Express
 
@@ -30,13 +30,13 @@ Server (`server.ts`):
 import express from "express";
 import { statis } from "system-tracker";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 
 const app = express();
 app.use(express.json());
 
 app.get("/api/users/:id", (req, res) => {
-  res.json({ id: req.params.id }); // counted as demo:API:GET:api/users/<id>
+  res.json({ id: req.params.id }); // counted as API GET api/users/<id>
 });
 
 app.listen(4000);
@@ -53,7 +53,7 @@ import { NestFactory } from "@nestjs/core";
 import { statis } from "system-tracker";
 import { AppModule } from "./app.module";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -71,7 +71,7 @@ Server: put the same call at the top of `server.ts` / `index.js`, before the ser
 ```ts
 import { statis } from "system-tracker";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 
 // ...create and start your server
 ```
@@ -86,7 +86,7 @@ Server (`instrumentation.ts`, next to `app/` or in `src/`):
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     const { statis } = await import("system-tracker");
-    statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+    statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
   }
 }
 ```
@@ -141,7 +141,7 @@ Server (`server/plugins/system-tracker.ts`):
 import { statis } from "system-tracker";
 
 export default defineNitroPlugin(() => {
-  statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+  statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 });
 ```
 
@@ -164,7 +164,7 @@ Server (`src/hooks.server.ts`, with `@sveltejs/adapter-node`):
 ```ts
 import { statis } from "system-tracker";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 ```
 
 Browser (`src/app.html`), inside `<head>`:
@@ -180,7 +180,7 @@ Server (`app/entry.server.tsx`), at the top:
 ```ts
 import { statis } from "system-tracker";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 ```
 
 Browser (`app/root.tsx`), inside `<head>`:
@@ -197,7 +197,7 @@ Server (`src/middleware.ts`, with `@astrojs/node`):
 import { defineMiddleware } from "astro:middleware";
 import { statis } from "system-tracker";
 
-statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo" });
+statis.init({ redis: { host: "127.0.0.1", port: 6379 }, prefix: "demo", secretKey: "a-long-random-secret" });
 
 export const onRequest = defineMiddleware((_context, next) => next());
 ```
@@ -243,6 +243,7 @@ In tests, turn tracking off:
 statis.init({
   redis: { host: "127.0.0.1", port: 6379 },
   prefix: "demo",
+  secretKey: "a-long-random-secret",
   enabled: process.env.NODE_ENV !== "test",
 });
 ```
