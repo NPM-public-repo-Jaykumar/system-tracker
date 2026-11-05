@@ -364,12 +364,37 @@ statis.init({
 - Reuse variables the project already has (its Redis URL, its environment variable) as they are. Only add new ones for what's missing.
 - New variables follow the project's naming convention; without one, use `REDIS_URL`, `SYSTEM_TRACKER_SECRET_KEY` (always added), `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD`.
 - Add them to:
-  - the local env file (`.env`, `.env.local`), with working local values. For the password, generate a strong random one (for example `openssl rand -base64 24`) instead of a word like `admin`. For the secret key, always generate one (for example `openssl rand -base64 32`); never make one up or reuse another secret.
-  - `.env.example` (or the project's template), with the names and an empty or placeholder value, never the real password or key.
-  - the project's config schema, if it has one.
-- Make sure the local env file is in `.gitignore`. If it isn't, say so and offer to add it.
+  - the local env file the project loads for local development (`.env`, `.env.local` or `.env.development`), with working local values. If the project has none, create `.env`, and add it to `.gitignore` in the same change.
+  - `.env.example` (or the project's template), with the names, placeholder values and a comment line above each, never the real password or key. Create it if the project has none.
+  - the project's config schema, if it has one (`zod`, `joi`, `envalid`, a typed `config.ts`): `SYSTEM_TRACKER_SECRET_KEY` as a required string of at least 16 characters, the login variables as optional strings.
+  - deployment files that already list environment variables (`docker-compose.yml` `environment:`, Kubernetes or Helm manifests, CI workflows, `render.yaml`, `fly.toml`, `app.json`): the new names, passed the way the project already passes its other secrets (for example `${SYSTEM_TRACKER_SECRET_KEY}` or a secret reference), never the values.
+- Generate the secret key and the dashboard password by running a command, and write its output into the local env file: `openssl rand -base64 32` for the key and `openssl rand -base64 24` for the password, or, where `openssl` isn't available (often on Windows), `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` (use `24` for the password). Never type a made-up value, never reuse another secret, and never use a word like `admin` as the password. The username can be `admin` unless the user picks another.
+- Don't show the generated password or key in your messages. Say which file holds them.
+- The local env file then has (each `<…>` replaced by the command's real output):
+
+  ```bash
+  # system-tracker
+  SYSTEM_TRACKER_SECRET_KEY=<output of: openssl rand -base64 32>
+  SYSTEM_TRACKER_DASHBOARD_USERNAME=admin
+  SYSTEM_TRACKER_DASHBOARD_PASSWORD=<output of: openssl rand -base64 24>
+  ```
+
+  and `.env.example`:
+
+  ```bash
+  # system-tracker
+  # Required: 16+ random characters (openssl rand -base64 32). One per environment, the same on every instance.
+  SYSTEM_TRACKER_SECRET_KEY=
+  # Dashboard sign-in. The dashboard stays off while these are empty.
+  SYSTEM_TRACKER_DASHBOARD_USERNAME=admin
+  # A strong password (openssl rand -base64 24).
+  SYSTEM_TRACKER_DASHBOARD_PASSWORD=
+  ```
+
+  Add `REDIS_URL` to both the same way when it's new (a working local URL in the env file, `redis://127.0.0.1:6379` as the example value).
+- Make sure the local env file is in `.gitignore`. If an existing one isn't, say so and offer to add it.
 - Never use a browser-exposed prefix (`NEXT_PUBLIC_`, `VITE_`, `NUXT_PUBLIC_`, `REACT_APP_`) for these: they'd end up in the page.
-- Make sure the env file is loaded before `statis.init(...)` runs (`import "dotenv/config"` at the top of the entry file, when the project uses `dotenv`; Next.js, Nuxt, SvelteKit and NestJS's `ConfigModule` handle it themselves, but check `instrumentation.ts` and other early files).
+- Make sure the env file is loaded before `statis.init(...)` runs. Next.js, Nuxt, SvelteKit, Vite-based servers and NestJS's `ConfigModule` load it themselves (but check `instrumentation.ts` and other early files). With `dotenv`, `import "dotenv/config"` goes at the top of the entry file. If nothing loads it, don't add a package: on Node 20.12 or newer, put `try { process.loadEnvFile(); } catch {}` at the top of the entry file (it reads `.env` and does nothing where the file doesn't exist, as on most hosting).
 - Remind the user to set the same variables on their hosting (staging, production), with their own values. Each environment gets its own secret key, the same on every instance of that environment. Tell them plainly: without `SYSTEM_TRACKER_SECRET_KEY` on a host, nothing is counted there; and changing it later starts route counts afresh (route names get new hashes) and hides what the dashboard saved under the old key.
 - The `dashboard.enable` guard keeps the dashboard off quietly when a login variable is missing. Without it, the dashboard also stays off, but the app logs a line about it at startup.
 

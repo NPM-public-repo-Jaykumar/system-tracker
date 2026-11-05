@@ -1,6 +1,6 @@
 {
   "name": "system-tracker",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "See how your Node.js app is used: page views, API calls, live connections and more, counted by the second up to the year, with a built-in dashboard and no tracking code in your routes.",
   "author": "Jaykumar Gohil",
   "repository": {
