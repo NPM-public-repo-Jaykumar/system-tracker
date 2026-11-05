@@ -62,6 +62,7 @@ export type InitOptions = {
     ownDomains?: string[];
     name?: (req: IncomingMessage) => Hit | undefined;
     enabled?: boolean;
+    platformCheck?: boolean;
     dashboard?: DashboardOptions;
 };
 export type DashboardLogin = {

@@ -244,13 +244,14 @@ The limits are kept in memory and start again when the app restarts.
 | `limits.collapseAfter` | `50` | A URL part with more distinct values becomes `<slug>` |
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off completely |
+| `platformCheck` | `true` | `false` skips the hosting platform check (see [If the check gets it wrong](platforms.md#if-the-check-gets-it-wrong)) |
 | `ownDomains` | `[]` | Domains of your own backend, for outgoing calls (see [Your own domains](how-it-works.md#your-own-domains)) |
 | `dashboard` | off | `{ enable, url, users, saveSampleCurl }` (see [Dashboard](dashboard.md#dashboard)); `url` defaults to `"/system-tracker"`, `users` is a list of `{ username, password }` (3 wrong tries block a username for 15 minutes), `saveSampleCurl` defaults to `true` (`false` keeps no recent requests or failures, so no headers, bodies, error responses or stacks) |
 
 
 ## Connect to Redis
 
-Pass the connection and the `prefix` straight to `init`. system-tracker never reads environment variables, so there are no variable names to remember. If you keep these values in your own config or env files, read them however you like and pass them in.
+Pass the connection and the `prefix` straight to `init`. system-tracker never takes its settings from environment variables, so there are no variable names to remember. If you keep these values in your own config or env files, read them however you like and pass them in.
 
 A Redis URL:
 

@@ -111,6 +111,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 If your app sets a Content Security Policy with a nonce, pass it to the `<Script>`; see [Content Security Policy](#content-security-policy).
 
+Run it with `next start` (or the standalone server) on a host that keeps it running. On Vercel and other serverless platforms nothing can be counted, so system-tracker and its dashboard turn themselves off there; see [Hosting platforms](platforms.md).
+
 ## Next.js, Pages Router
 
 Server (`instrumentation.ts`): the same as the [App Router](#nextjs-app-router).

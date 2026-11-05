@@ -55,6 +55,8 @@ Four tabs, and each part loads only when you open it:
 
 **Storage**: the top bar shows how much of Redis is in use and the tracker's share, for example `Redis 230 MB / 2 GB · tracker ≈28 MB`. It turns amber when Redis is 80% full. Hover it for the details, or click it for the **Storage in Redis** card on the Settings tab. That card has a bar for the tracker, everything else and the free space, and a table of the tracker's keys by group: each time bucket (with how long it's kept), recent requests, failures, boards and reports, with their key counts and sizes. Redis's own numbers come from `INFO memory` (`used_memory`, and `maxmemory`, or the server's RAM when no `maxmemory` is set) and `DBSIZE`, added up across cluster masters. The tracker's share comes from a `SCAN` of its keys in the background, at most once every 10 minutes and only while the dashboard is open. Sizes are estimated from `MEMORY USAGE` on a random sample of each group, so they're approximate. "Other" is everything else in Redis: other apps' keys and Redis's own overhead. **Recount** starts a new count (at most every 30 seconds). If your Redis provider blocks `INFO` or `MEMORY USAGE`, the card shows what it can, such as key counts only.
 
+**Platform note**: on a platform that pauses idle servers, a note in the bottom-left corner of the dashboard and the sign-in page says some counts may be lost, with a **Listed servers** link. Close it and it stays closed in that browser. See [Hosting platforms](platforms.md#works-but-some-counts-are-lost).
+
 Hover any chart, including the small trend lines, to see the time and the value under the cursor. Click a chart's legend to hide or show a series.
 
 ## Insights

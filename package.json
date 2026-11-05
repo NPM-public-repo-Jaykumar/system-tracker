@@ -1,6 +1,6 @@
 {
   "name": "system-tracker",
-  "version": "3.0.20",
+  "version": "3.0.21",
   "description": "See how your Node.js app is used: page views, API calls, live connections and more, counted by the second up to the year, with a built-in dashboard and no tracking code in your routes.",
   "author": "Jaykumar Gohil",
   "repository": {
@@ -56,6 +56,18 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": "./dist/index.js",
+      "edge-light": "./dist/edge.js",
+      "workerd": "./dist/edge.js",
+      "worker": "./dist/edge.js",
+      "browser": "./dist/edge.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist",
     "SKILL.md"

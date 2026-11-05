@@ -35,9 +35,9 @@ statis.init({
 });
 ```
 
-- `redis` and `prefix` are passed to `init` directly; the package reads no environment variables.
+- `redis` and `prefix` are passed to `init` directly; the package takes no settings from environment variables (it only reads the hosting platform's own variables, such as `VERCEL`, to know where it runs).
 - `redis` accepts one of:
-- a `redis://` or `rediss://` (TLS) URL string, such as `"redis://default:secret@host:6379"`
+- a `redis://` or `rediss://` (TLS) URL string, such as `"redis://default:secrethost:6379"`
 - `{ host, port, username?, password? }` (standalone)
 - `{ nodes: [{ host, port }, ...], username?, password? }` (cluster)
 - `{ client: existingIoredisClient, type: "standalone" | "cluster" }` (reuse an existing client)
@@ -61,6 +61,7 @@ statis.init({
 | `limits.collapseAfter` | `50` | A URL part with more distinct values becomes `<slug>` |
 | `name` | — | `(req) => ({ type, action, name })` to name any request yourself |
 | `enabled` | `true` | `false` turns tracking off (e.g. in tests) |
+| `platformCheck` | `true` | `false` skips the hosting platform check. Only when it wrongly turns the package off on a server that keeps running |
 | `ownDomains` | `[]` | Domains of the app's own backend, e.g. `["example.com"]`. Outgoing calls to them (and to local/private hosts, and to the domain the app is reached on) show as "your backend" instead of "third-party" in the dashboard |
 | `dashboard` | off | `{ enable: true, url?: "/system-tracker", users?: [{ username, password }, ...], saveSampleCurl?: true }` serves a built-in dashboard from the app's own server; the app's log prints its full URL at startup. Anyone in `users` can sign in (`username` + `password` is a shorthand for one user). A wrong username or password gets the same "Wrong username or password"; 3 wrong tries block that username for 15 minutes, even with the right password (kept in Redis at `system-tracker:login-blocked:{prefix}:{username}`, expiring at the unlock time). `saveSampleCurl: false` keeps no recent requests or failures |
 
@@ -100,7 +101,7 @@ statis.init({
 - Nuxt: `server/plugins/system-tracker.ts` inside `defineNitroPlugin(() => { ... })`
 - SvelteKit (`adapter-node`): top of `src/hooks.server.ts`
 - Remix / React Router: top of `app/entry.server.tsx`
-- Astro (`@astrojs/node`): top of `src/middleware.ts`
+- Astro (`astrojs/node`): top of `src/middleware.ts`
 - React, Vue, Angular, Svelte SPAs (Vite, CRA, Angular CLI): in the API server they call, not in the app; the page-view script then uses the API server's full URL with `data-count-first` when the pages are served from elsewhere
 - For every framework whose pages change without a reload, also add the page-view script (see the single-page apps bullet above) in the same change, so the setup is complete.
 - `prefix` is the environment the app runs in, read from the environment variable the project already uses: `prefix: process.env.APP_ENV ?? "development"` gives keys like `production:API:GET:…`, `staging:API:GET:…`, so local, staging and production counts never mix in a shared Redis (see [Config values](#config-values)). Never put per-request values such as `userId`, `walletAddress`, `tenantId` or `sessionId` inside it, and never `:`.
@@ -155,7 +156,8 @@ If you have no code access, ask for the root `package.json`, the startup/entry f
 - Redis on this machine (when you can run commands), so the setup can be tried right away: `redis-cli ping` answers `PONG`, `docker ps` lists a running Redis container, or port 6379 is open on `127.0.0.1`. Only read; don't start or change anything without asking.
 - The package manager, from the lockfile (`package-lock.json` → npm, `yarn.lock` → yarn, `pnpm-lock.yaml` → pnpm, `bun.lockb` → bun), to install `system-tracker` with. It brings its own Redis client (`ioredis`); nothing else needs installing.
 - The environment variable the project uses to tell environments apart: `APP_ENV`, `ENVIRONMENT`, `STAGE`, `DEPLOY_ENV`, `VERCEL_ENV`, `RAILWAY_ENVIRONMENT`, or only `NODE_ENV`. Note its values (`development`, `staging`, `production`).
-- Env files (`.env`, `.env.local`, `.env.development`, `.env.example`), whether they're in `.gitignore`, how they're loaded (`dotenv`, `@nestjs/config`, framework built-in), and any config schema (`zod`, `joi`, `envalid`, a typed `config.ts`) that new variables must be added to.
+- Where it's deployed: `vercel.json` or `.vercel/`, `netlify.toml`, `serverless.yml`, `template.yaml` (AWS SAM), `sst.config.ts`, `open-next.config.ts`, `amplify.yml`, `host.json` (Azure Functions), `wrangler.toml`, `firebase.json`, `app.yaml`, `fly.toml`, `render.yaml`, `railway.json`, `Procfile`, `Dockerfile`, Kubernetes manifests, CI deploy steps. On a serverless or edge platform (Vercel, Netlify, AWS Lambda, Amplify, Azure Functions, Cloudflare Workers), system-tracker counts nothing and turns itself off there; say so in `Found:` and pre-select it in Step-1. Note when one app is deployed to both kinds (for example QA on Vercel and production on a server). On a platform that pauses idle servers (Cloud Run, Cloud Functions, Firebase, App Runner, Fly.io with auto-stop, Render free), say some counts may be lost.
+- Env files (`.env`, `.env.local`, `.env.development`, `.env.example`), whether they're in `.gitignore`, how they're loaded (`dotenv`, `nestjs/config`, framework built-in), and any config schema (`zod`, `joi`, `envalid`, a typed `config.ts`) that new variables must be added to.
 - Entry file and the best place for `statis.init(...)` (see "Where to call `statis.init(...)`" above).
 - Traffic it handles, with the file that shows it:
   - pages rendered by the server, and whether pages change without a reload (client-side routing)
@@ -164,7 +166,7 @@ If you have no code access, ask for the root `package.json`, the startup/entry f
   - JSON-RPC (`"jsonrpc": "2.0"` bodies, `/rpc` routes, `json-rpc-2.0`, `jayson`)
   - WebSockets or Socket.IO (`ws`, `socket.io`)
   - server-sent events (`text/event-stream`)
-  - gRPC (`@grpc/grpc-js`)
+  - gRPC (`grpc/grpc-js`)
   - calls the app makes to other services (`fetch`, `axios`, `http.request`, RPC providers, payment or email APIs)
   - static files served by the app
 - Every route the app defines (router files, controllers, `app/api/**/route.ts`, `pages/api/**`, GraphQL resolvers, RPC method tables, socket event handlers), so you can predict the key each one gets. See [Make every kind of traffic count](#make-every-kind-of-traffic-count).
@@ -187,9 +189,9 @@ Don't assume a kind of traffic is counted because the library is installed. For 
 | JSON-RPC | the body has `"jsonrpc": "2.0"` and a `method`; counted as `RPC` `CALL` / `NOTIFY` by method. Under `/api/` it's `API` by route, unless the route or host has `rpc` in it (`/api/rpc`) | Bodies without `jsonrpc` (`{ "action": "swap" }`, `{ "op": … }`), or JSON-RPC under a plain `/api/` route by method: `operations: [{ path: "/action", type: "RPC", read: (b) => b.action }]`. |
 | WebSockets | the socket server runs on a Node `http`/`https` server in the same process (`ws`, `socket.io`, `new WebSocketServer({ port })` all do) | Messages and Socket.IO events are counted only when `ws` / `socket.io` resolve from the folder the app starts in (its `node_modules`). In a monorepo started from the root, check this. `uWebSockets.js`, `Bun.serve` and `Deno.serve` aren't Node servers and can't be counted; say so. |
 | Server-sent events | the response sets `Content-Type: text/event-stream` | Set that header on the stream (SSE needs it anyway). |
-| gRPC | `@grpc/grpc-js` serves in the same process | A proxy or separate binary isn't counted; say so. |
+| gRPC | `grpc/grpc-js` serves in the same process | A proxy or separate binary isn't counted; say so. |
 | Outgoing calls | made with `http`, `https`, `fetch`, `undici` or a client built on them (axios, got, node-fetch), and `track: { OUT: true }` | Turn `OUT` on if the user chose it. When the app calls its own backend on a domain other than the one it's served on (or the dashboard is opened before any request, e.g. in local development against a remote API), add that domain to `ownDomains`. |
-| Pages changed in the browser | the page-view script is in the shared layout | Add it (Step-6). |
+| Pages changed in the browser | the page-view script is in the shared layout | Add it (Step-7). |
 
 Then make sure nothing important ends up under a catch-all name. Go through the routes you listed and predict each key; fix every one that would land in:
 
@@ -225,28 +227,45 @@ Start with `I inspected the codebase.` Then:
   | web | `apps/web` | Next.js | Full-stack | pages, page changes, API |
   | admin | `apps/admin` | React (Vite) | Frontend only | page changes (via `api`) |
 
-- `Found:` for each project to set up: Redis (yes/no, where), entry file, each kind of traffic with the file that shows it, noisy paths, possible custom `types`/`operations`, CSP nonce, work that won't be counted, env files and the environment variable, and whether Redis runs on this machine.
+- `Found:` for each project to set up: Redis (yes/no, where), entry file, each kind of traffic with the file that shows it, noisy paths, possible custom `types`/`operations`, CSP nonce, work that won't be counted, where it's deployed and whether that platform is supported, env files and the environment variable, and whether Redis runs on this machine.
 - `Best path:` where `statis.init(...)` and the page-view script go, reuse Redis or add it, and the options you recommend.
 - `Steps:` list the steps that apply, then say: `Let's go step by step. I'll ask the first question now.` and ask only the first one.
 
 ## Steps
 
-Ask only the steps that apply, in this order. In a workspace with several projects, Step-0 comes first, and Steps 4 to 11 are asked per chosen project (name the project in each question). Step-3 decides whether Steps 4 to 11 are asked at all.
+Ask only the steps that apply, in this order. In a workspace with several projects, Step-0 comes first, and Step-1 and Steps 5 to 12 are asked per chosen project (name the project in each question). Step-4 decides whether Steps 5 to 12 are asked at all.
 
 - `Step-0` Which projects (only when the root has several)
   - Multi-select of the projects that can be tracked, with their role.
   - Recommend every Server and Full-stack project that handles real traffic. A Frontend-only project is set up together with the server it calls.
-- `Step-1` Redis connection
+- `Step-1` Where the app runs. Always ask, per project: hosting is often set up outside the code (a Vercel or Jenkins dashboard), and one app can run in several places (QA on Vercel, production on a server).
+  - Multi-select. Pre-select and mark `(Recommended)` what the deploy files show, naming the file (for example "found `vercel.json`"). When nothing is found, recommend `A server that keeps running`.
+    - `A server that keeps running`: a VPS, Docker, Kubernetes, AWS EC2 or ECS, DigitalOcean App Platform, or Railway, Render or Heroku on plans that don't sleep. Everything works; nothing extra to set up.
+    - `Vercel, Netlify, AWS Lambda, Amplify, Azure Functions, Cloudflare Workers or another serverless or edge platform`: nothing can be counted there and the dashboard can't be opened there; system-tracker turns itself off on its own, so the build and the app are unaffected.
+    - `Google Cloud Run, Cloud Functions or Firebase`: counted, but some counts are lost when the platform slows down idle servers, unless it's kept running.
+    - `Fly.io, Render free, Railway with sleeping, Heroku eco or AWS App Runner`: counted, but some counts are lost while the app sleeps, unless it's kept running.
+  - For anything else the user names, look it up in https://github.com/NPM-public-repo-Jaykumar/system-tracker/blob/main/guide/platforms.md and treat it like the group it belongs to.
+  - Then, by the answer:
+    - Only `A server that keeps running`: the usual setup. Don't mention platforms again.
+    - Includes a serverless or edge platform: say plainly that nothing is counted there and the dashboard isn't served there (its URL shows the app's 404 page); system-tracker turns itself off and prints one line in that platform's logs, so the build and the app are unaffected. Don't add any route, proxy or other workaround for it. If the app also runs on a server that keeps running, continue the usual setup (the same code works on both); if it runs only there, recommend `Stop here`.
+    - Includes a platform that pauses idle servers: ask `Keep it running so nothing is lost (Recommended)` / `Leave it; some counts may be lost`. Keeping it running can cost more; say so. Change only files that are in the repo, show the change in Step-13, and for settings made in the platform's dashboard tell the user where:
+      - Cloud Run: `--no-cpu-throttling --min-instances=1` on `gcloud run deploy` (or `run.googleapis.com/cpu-throttling: "false"` and `autoscaling.knative.dev/minScale: "1"` in the service YAML).
+      - Cloud Functions: `--min-instances=1` on `gcloud functions deploy`; Firebase: `minInstances: 1` in the function's options. These cut the cold starts, but CPU is still slowed between requests, so say a few counts can still be lost.
+      - Fly.io: in `fly.toml` under `[http_service]`, `auto_stop_machines = "off"` and `min_machines_running = 1`.
+      - Railway: turn off Serverless (app sleeping) in the service settings. Render: a paid instance type. Heroku: a Basic dyno or higher.
+      - App Runner: there's no setting that keeps the CPU running, so say a few counts can be lost.
+- `Step-2` Redis connection
   - An `ioredis` client found: `Reuse the Redis connection in <file> (Recommended)`: no new connection, no new config. / `Use a separate connection`.
   - Another client or only a URL found: `Use the project's Redis settings from <file/variable> (Recommended)`. system-tracker opens its own connection with them.
   - No Redis in the project, but one runs on this machine: `Use the Redis running locally at redis://127.0.0.1:6379 (Recommended)`: adds `REDIS_URL` to the local env file, so tracking works right away; set the real URL for staging and production on the hosting. / `I'll give a Redis URL` / `Stop here`.
   - No Redis anywhere: `Add Redis to this project (Recommended)`: adds `REDIS_URL` to the env files; offer to start one locally with Docker (`docker run -d --name redis -p 6379:6379 redis:7`) and run it only if the user says yes. / `Stop here`.
   - In every case: `system-tracker` is installed with the project's package manager, and it brings its own Redis client.
-- `Step-2` Redis mode (only for a new connection, or when the existing mode is unclear): `Standalone` / `Cluster`. Recommend the one the project's hosting or config points to; if nothing does, recommend `Standalone` and say why.
-- `Step-3` How to set up the rest. This keeps the setup fast.
+- `Step-3` Redis mode (only for a new connection, or when the existing mode is unclear): `Standalone` / `Cluster`. Recommend the one the project's hosting or config points to; if nothing does, recommend `Standalone` and say why.
+- `Step-4` How to set up the rest. This keeps the setup fast.
   - First show the recommended settings in a short list, one line each, based on what you found: prefix, what to track, page-view script, skipped paths and crawlers, failures (always on), groups, time periods, dashboard. For example:
 
     ```text
+    Runs on:       DigitalOcean App Platform · Vercel (QA: turned off there, nothing counted)
     Prefix:        ${APP_ENV}                 (production, staging, development)
     Track:         defaults + calls to outside services (OUT: rpc.example.com, api.stripe.com)
     Page changes:  script in app/layout.tsx (with your CSP nonce)
@@ -257,16 +276,16 @@ Ask only the steps that apply, in this order. In a workspace with several projec
     ```
 
   - Then ask: `How do you want to set up the rest?`
-    - `Use the recommended settings (Recommended)`: skip Steps 4 to 11 and go straight to Step-12, with the list above.
+    - `Use the recommended settings (Recommended)`: skip Steps 5 to 12 and go straight to Step-13, with the list above.
     - `Recommended, but let me change some`: multi-select of the settings above, except failures, which is always on; ask only the steps for the ones picked, and use the recommended answer for the rest.
-    - `Go through each setting`: ask Steps 4 to 11 one by one.
+    - `Go through each setting`: ask Steps 5 to 12 one by one.
   - With several projects, show one list per project and ask once for all of them.
-- `Step-4` Prefix (the first part of every key)
+- `Step-5` Prefix (the first part of every key)
   - Recommend the environment variable you found, on its own, and show the code and the keys it gives, for example `process.env.APP_ENV ?? "development"` → `production:API:GET:…`. The fallback keeps it from being empty where the variable isn't set.
   - Options: `The project's <VARIABLE> (Recommended)` / `A fixed name` (only for one environment per Redis) / `Something else`.
   - If the project has only `NODE_ENV`, use it, but say that staging usually runs with `NODE_ENV=production`; if staging and production share one Redis, recommend adding an `APP_ENV` variable instead.
   - With several projects, they share this prefix, so their counts add up in one total and every dashboard shows all of them together. Say so. If two projects have routes with the same name and share a Redis, offer to keep them apart by adding the project name (`` `api-${process.env.APP_ENV ?? "development"}` ``).
-- `Step-5` What to track (multi-select). One option per kind of activity, in plain words:
+- `Step-6` What to track (multi-select). One option per kind of activity, in plain words:
 
   | Option | Type | Default | Recommend when |
   | --- | --- | --- | --- |
@@ -283,35 +302,35 @@ Ask only the steps that apply, in this order. In a workspace with several projec
 
   - Pre-select and mark `(Recommended)` what you found. For a built-in type you didn't find, say "not found in the code; leaving it on costs nothing until such traffic appears". Recommend leaving it on, so `init` stays short.
   - In `init`, write only the entries that differ from the defaults, for example `track: { OUT: true }`.
-- `Step-6` Page changes in the browser (only for Full-stack or Frontend-only projects whose pages change without a reload)
+- `Step-7` Page changes in the browser (only for Full-stack or Frontend-only projects whose pages change without a reload)
   - `Count page changes inside the app (Recommended)`: adds the page-view script to `<file>`. / `Count only full page loads`.
   - Pages served from another origin than the server: use the server's full URL and `data-count-first`. CSP with a nonce: pass the nonce. Say which applies.
-- `Step-7` Skip noise
+- `Step-8` Skip noise
   - Multi-select of the noisy paths found for `ignore.paths` (health, metrics, readiness probes), each `(Recommended)`.
   - Then: `Skip search engines and crawlers?` `Yes (Recommended)` for public websites, `No (Recommended)` for internal APIs.
-- `Step-8` Failures: always on, don't ask. Add `failures: true` to every `init`. It counts failed requests (status 500 and above) in one extra `:5xx` key each, and powers the failure charts, failure rate and alerts in the dashboard. Tell the user it's on.
-- `Step-9` Groups (only when found): offer the route groups as custom `types` (for example `/webhooks/*` as `HOOK`) and single-URL endpoints as `operations`. Recommend each one that's found; `Keep the defaults` is the other option.
-- `Step-10` How long to keep counts:
+- `Step-9` Failures: always on, don't ask. Add `failures: true` to every `init`. It counts failed requests (status 500 and above) in one extra `:5xx` key each, and powers the failure charts, failure rate and alerts in the dashboard. Tell the user it's on.
+- `Step-10` Groups (only when found): offer the route groups as custom `types` (for example `/webhooks/*` as `HOOK`) and single-URL endpoints as `operations`. Recommend each one that's found; `Keep the defaults` is the other option.
+- `Step-11` How long to keep counts:
   - `Standard (Recommended)`: every bucket, kept 1 hour (sec), 1 day (min, hour), 30 days (day), 180 days (month), 10 years (year). Nothing to add to `init`.
   - `Lighter`: no per-second counts (`sec: { enable: false }`). Fewer Redis writes.
   - `Longer history`: day counts for 90 days.
   - `Custom`: the user lists buckets and expiries, such as `hour,day,month` or `day: 90 days`.
   - Buckets not chosen get `enable: false`. Confirm the breakdown back.
-- `Step-11` Dashboard. Strongly recommend it, with a login:
+- `Step-12` Dashboard. Strongly recommend it, with a login:
   - `Turn on the dashboard with a login from env variables (Recommended)`: adds `SYSTEM_TRACKER_DASHBOARD_USERNAME` and `SYSTEM_TRACKER_DASHBOARD_PASSWORD` (or names that follow the project's convention) to the env files, and reads them in `init`. It stays off wherever they aren't set, so it's never open by accident.
   - `Turn it on without a login`: local development only; anyone who can reach the URL sees the traffic and can change boards. Say this plainly.
   - `No dashboard`.
   - Write `url: "/system-tracker"` in `init` even though it's the default, so the path is visible in the code. Tell the user the URL it'll be at (for example `http://localhost:3000/system-tracker`), that the app's log prints it at startup (`[system-tracker] dashboard: http://localhost:3000/system-tracker`), and that reset data needs the login.
   - Tell them more people can sign in by adding them to `users`, and that 3 wrong tries block a username for 15 minutes (deleting `system-tracker:login-blocked:{prefix}:{username}` in Redis unblocks it early).
   - Say what they get: charts per route, insights, boards, an export of any screen, and on each route's page (outgoing calls included) its recent requests as curl (the exact sample or the structure, copyable into Postman) and its recent failures with the error response and stack. Those requests are kept as sent, tokens included, which is one more reason for the login. If the user is concerned about that (personal data, compliance), offer `saveSampleCurl: false`: counts and charts stay (5xx counts too), and no requests, failures, error responses or stacks are kept. Leave it out otherwise; `true` is the default.
-- `Step-12` Final confirmation
+- `Step-13` Final confirmation
   - Show, per project, the full `statis.init({...})` call, the page-view script tag and the file for each, the env variables to add (names and which files; never the password value).
   - Ask: `Should I make these changes now?` `Implement (Recommended)` / `Change something` / `Stop`.
   - On `Change something`, ask which setting, ask only that step, then show this confirmation again.
 
 ## Config values
 
-system-tracker reads no environment variables itself. The project's own code reads them and passes the values to `statis.init(...)`:
+system-tracker takes no settings from environment variables. The project's own code reads them and passes the values to `statis.init(...)`:
 
 ```ts
 const env = process.env;
@@ -350,12 +369,12 @@ statis.init({
 - If the project already has an `ioredis` client, prefer `statis.init({ redis: { client, type }, prefix })`.
 - If Redis is set up fresh, pass its URL from an env variable (see [Config values](#config-values)). Never hardcode a Redis password or a dashboard password in source.
 - Install `system-tracker` with the project's package manager.
-- Add the page-view script in the same change as `init` whenever the user chose it in Step-6.
+- Add the page-view script in the same change as `init` whenever the user chose it in Step-7.
 - Do not add a stats endpoint or stat-reading helper unless the user asks; the dashboard covers it.
 - Do not add tracking calls to routes, controllers, services, workers or jobs; system-tracker has no manual tracking API.
-- The prefix is the project's environment variable (Step-4). Never use per-request prefixes such as `qa-server:${userId}`.
+- The prefix is the project's environment variable (Step-5). Never use per-request prefixes such as `qa-server:${userId}`.
 - In tests, pass `enabled: false` to `statis.init(...)`.
-- Set up `dashboard` as chosen in Step-11. With a login, read the username and password from env variables into `users` and guard `enable` with them, as in [Config values](#config-values). Add `saveSampleCurl: false` only when the user asked for it.
+- Set up `dashboard` as chosen in Step-12. With a login, read the username and password from env variables into `users` and guard `enable` with them, as in [Config values](#config-values). Add `saveSampleCurl: false` only when the user asked for it.
 
 ## After all changes are done
 

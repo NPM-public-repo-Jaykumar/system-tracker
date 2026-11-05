@@ -1,5 +1,6 @@
 import type { RedisClient } from "./redis";
 import type { AutoConfig, InitOptions, TimeBucket, TimeConfig } from "./types";
+import type { Platform } from "./platform";
 export declare const DEFAULT_TIME_CONFIG: Record<TimeBucket, {
     enable: boolean;
     expiry_in_sec: number;
@@ -22,3 +23,6 @@ export declare function setInitOptions(options: InitOptions | null): void;
 export declare function getInitOptions(): InitOptions | null;
 export declare function isStarted(): boolean;
 export declare function markStarted(): void;
+export declare function setPlatform(platform: Platform | null): void;
+export declare function getPlatform(): Platform | null;
+export declare function isTurnedOff(): boolean;

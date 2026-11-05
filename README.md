@@ -69,9 +69,16 @@ The dashboard and its own pages are never counted.
 
 Express, NestJS, Fastify, Koa and plain Node, Next.js, Nuxt, SvelteKit, Remix and React Router, Astro, and single-page apps built with React, Vue, Angular or Svelte.
 
+## Where you can run it
+
+Anywhere your app runs as a Node.js server that keeps running: a VPS, Docker, Kubernetes, AWS EC2 or ECS, DigitalOcean App Platform, and Railway, Render, Fly.io or Heroku on plans that don't sleep.
+
+On serverless platforms such as Vercel, AWS Lambda, Netlify and Azure Functions, nothing can be counted, so it turns itself off, dashboard included, and says so in one log line. On edge runtimes such as Cloudflare Workers it does nothing. It never breaks your build. On platforms that pause idle servers, the dashboard shows a note that some counts may be lost. See [Hosting platforms](guide/platforms.md) for the full list.
+
 ## Learn more
 
 - [Set up your framework](guide/frameworks.md): where to add it, and counting page changes in single-page apps
+- [Hosting platforms](guide/platforms.md): where it works, where some counts are lost, and where it can't count
 - [Dashboard](guide/dashboard.md): overview, insights, boards and recent requests
 - [Settings](guide/settings.md): connecting to Redis, what to track or skip, and how long counts are kept
 - [How it works](guide/how-it-works.md): how each request is sorted, how routes are named, and reading the numbers in your own code
